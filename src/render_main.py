@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/home/gizatt/tools/blender_server/src/")
 import blender_scripts.object_manip as object_manip
 import blender_scripts.utils as blender_utils
 import blender_scripts.lighting_utils as lighting_utils
@@ -10,7 +12,7 @@ import bpy
 import numpy as np
 
 if __name__ == '__main__':
-    data_root = blender_utils.get_data_root()
+    data_root = "/home/gizatt/tools/blender_server/data/"
 
     # The plane
     plane_path = os.path.join(data_root, 'test_objs/plane.obj')
