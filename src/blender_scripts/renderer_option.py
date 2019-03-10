@@ -37,13 +37,13 @@ class RendererOption:
         return self.focal_x_mm / s_u
 
 
-def setup_renderer_resolution(option: RendererOption):
+def setup_renderer_resolution(option: RendererOption, camera_name='Camera'):
     bpy.data.scenes['Scene'].render.resolution_x = option.resolution_x
     bpy.data.scenes['Scene'].render.resolution_y = option.resolution_y
     bpy.data.scenes['Scene'].render.resolution_percentage = 100
 
     # Set up the camera intrsinsic
-    camera_obj = bpy.context.scene.objects['Camera']
+    camera_obj = bpy.context.scene.objects[camera_name]
     camera_obj.data.type = 'PERSP'
     camera_obj.data.lens_unit = 'MILLIMETERS'
     camera_obj.data.lens = option.focal_bpy()
@@ -94,10 +94,10 @@ class EeveeRendererOption(RendererOption):
     shadow_cube_size = '1024'
 
 
-def setup_and_use_eevee(option: EeveeRendererOption):
+def setup_and_use_eevee(option: EeveeRendererOption, camera_name='Camera'):
     # The general setup code
     assert not is_old_api()
-    setup_renderer_resolution(option)
+    setup_renderer_resolution(option, camera_name=camera_name)
     bpy.context.scene.render.engine = 'BLENDER_EEVEE'
 
     # The setup code for ambient occulusion

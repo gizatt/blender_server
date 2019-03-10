@@ -24,38 +24,53 @@ if __name__ == '__main__':
                         scale=[0.1, 0.05, 0.1],
                         material="metal26")
 
-    objs = []
-    for i, obj_base_path in enumerate([
+
+    object_classes = [
             "../data/test_objs/ycb/004_sugar_box/google_16k/",
-            "../data/test_objs/ycb/035_power_drill/google_16k/"]):
+            "../data/test_objs/ycb/035_power_drill/google_16k/"
+    ]
+    objs = []
+    for i, obj_base_path in enumerate(object_classes):
         tex_path = obj_base_path + "texture_map.png"
         bsm.register_material("obj_%d_color" % i,
                               material_type="color_texture",
                               path=tex_path)
-        bsm.register_object("obj_%d" % i,
-                            path=obj_base_path + "textured.obj",
-                            scale=[1., 1., 1.],
-                            material="obj_%d_color" % i)
-        objs.append("obj_%d" % i)
+        for k in range(2):
+            obj_name = "obj_%d_%d" % (i, k)
+            bsm.register_object(obj_name,
+                                path=obj_base_path + "textured.obj",
+                                scale=[1., 1., 1.],
+                                material="obj_%d_color" % i)
+            objs.append(obj_name)
+
 
     bsm.register_camera("cam_1",
                         location=[-.54, -.54, .12],
                         quaternion=[-0.677, -0.604, 0.242, 0.365])
 
-    bsm.configure_rendering(resolution_x=1920, resolution_y=1200,
+    bsm.configure_rendering(camera_name='cam_1',
+                            resolution=[1920, 1200],
                             file_format="JPEG")
 
     env_map_path = "../data/env_maps/aerodynamics_workshop_4k.hdr"
-    bsm.register_environment_map("env_map", path=env_map_path)
+    bsm.set_environment_map(path=env_map_path)
 
     bsm.save_current_scene('./out/save.blend')
 
     for i in range(10):
         for obj_tmp in objs:
+            loc = [np.random.uniform(-0.4, 0.4),
+                   np.random.uniform(-0.4, 0.4),
+                   0.]
+            quat = np.random.uniform(-1, 1, size=4)
+            quat /= np.linalg.norm(quat)
             bsm.update_parameters(
                 obj_tmp,
-                location=np.random.uniform(-0.4, 0.4),
-                quaternion=np.random.uniform(-0.4, 0.4))
+                location=loc,
+                rotation_mode='QUATERNION',
+                rotation_quaternion=quat)
 
-        bsm.configure_rendering(filepath="./out/pic%0.2d.jpg" % i)
-        bsm.render()
+        bsm.configure_rendering(
+            camera_name='cam_1', 
+            filepath="./out/pic%0.2d.jpg" % i)
+        bsm.render("cam_1")

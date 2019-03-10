@@ -20,12 +20,14 @@ class ObjectMap:
             current_images.add(image_i)
         return current_images
 
-    def add_object_to_scene(self, obj_path: str) -> str:
+    def add_object_to_scene(self, obj_path: str, name=None) -> str:
         current_images = ObjectMap._get_current_images()
 
         # Add the object using bpy methods
         bpy.ops.import_scene.obj(filepath=obj_path)
         imported_obj = bpy.context.selected_objects[0]
+        if name is not None:
+            imported_obj.name = name
 
         # Check the new image sets
         if len(bpy.data.images) == len(current_images):
@@ -60,12 +62,12 @@ class ObjectMap:
 object_map = ObjectMap()
 
 
-def import_obj_model(obj_path: str) -> str:
+def import_obj_model(obj_path: str, name=None) -> str:
     """
     :param obj_path: The path to the obj model
     :return: The name of the object as an index
     """
-    return object_map.add_object_to_scene(obj_path)
+    return object_map.add_object_to_scene(obj_path, name=name)
 
 
 def object_has_image_texture(name_key: str) -> bool:
