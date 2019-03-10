@@ -17,17 +17,17 @@ if __name__ == '__main__':
                           material_type="CC0_texture",
                           path=metal26_path)
 
-    plane_path = "../data/objects/plane.obj"
+    plane_path = "../data/test_objs/plane.obj"
     bsm.register_object("obj_table",
-                        model_path=plane_path,
+                        path=plane_path,
                         location=[0, 0, -0.35],
                         scale=[0.1, 0.05, 0.1],
                         material="metal26")
 
     objs = []
     for i, obj_base_path in enumerate([
-            os.path.join(data_root, "test_objs/ycb/004_sugar_box/google_16k/"),
-            os.path.join(data_root, "test_objs/ycb/035_power_drill/google_16k/")]):
+            "../data/test_objs/ycb/004_sugar_box/google_16k/",
+            "../data/test_objs/ycb/035_power_drill/google_16k/"]):
         tex_path = obj_base_path + "texture_map.png"
         bsm.register_material("obj_%d_color" % i,
                               material_type="color_texture",
