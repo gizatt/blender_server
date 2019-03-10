@@ -2,7 +2,7 @@ import sys
 
 # TODO(gizatt) Why is this required?
 # Why isn't current launch dir included in sys.path?
-sys.path.append("/home/gizatt/tools/blender_server/src/")
+sys.path.append("/home/gizatt/tools/blender_server/")
 import blender_scripts.object_manip as object_manip
 import blender_scripts.utils as blender_utils
 import blender_scripts.lighting_utils as lighting_utils

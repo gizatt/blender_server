@@ -6,18 +6,18 @@ import sys
 # TODO(gizatt) Why is this required?
 # Why isn't current launch dir included in sys.path?
 print(sys.path)
-sys.path.append("/home/gizatt/tools/blender_server/src/")
+sys.path.append("/home/gizatt/tools/blender_server/")
 import blender_scripts.blender_scene_management as bsm
 
 if __name__ == '__main__':
     bsm.initialize_scene()
 
-    metal26_path = "../data/test_pbr_mats/Metal26/Metal26"
+    metal26_path = "./data/test_pbr_mats/Metal26/Metal26"
     bsm.register_material("metal26",
                           material_type="CC0_texture",
                           path=metal26_path)
 
-    plane_path = "../data/test_objs/plane.obj"
+    plane_path = "./data/test_objs/plane.obj"
     bsm.register_object("obj_table",
                         path=plane_path,
                         location=[0, 0, -0.35],
@@ -26,8 +26,8 @@ if __name__ == '__main__':
 
 
     object_classes = [
-            "../data/test_objs/ycb/004_sugar_box/google_16k/",
-            "../data/test_objs/ycb/035_power_drill/google_16k/"
+            "./data/test_objs/ycb/004_sugar_box/google_16k/",
+            "./data/test_objs/ycb/035_power_drill/google_16k/"
     ]
     objs = []
     for i, obj_base_path in enumerate(object_classes):
@@ -52,7 +52,7 @@ if __name__ == '__main__':
                             resolution=[1920, 1200],
                             file_format="JPEG")
 
-    env_map_path = "../data/env_maps/aerodynamics_workshop_4k.hdr"
+    env_map_path = "./data/env_maps/aerodynamics_workshop_4k.hdr"
     bsm.set_environment_map(path=env_map_path)
 
     bsm.save_current_scene('./out/save.blend')

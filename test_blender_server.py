@@ -12,14 +12,14 @@ if __name__ == '__main__':
 
     bsi.send_remote_call("initialize_scene")
 
-    metal26_path = "../data/test_pbr_mats/Metal26/Metal26"
+    metal26_path = "./data/test_pbr_mats/Metal26/Metal26"
     bsi.send_remote_call(
         "register_material",
         name="metal26",
         material_type="CC0_texture",
         path=metal26_path)
 
-    plane_path = "../data/test_objs/plane.obj"
+    plane_path = "./data/test_objs/plane.obj"
     bsi.send_remote_call(
         "register_object",
         name="obj_table",
@@ -30,8 +30,8 @@ if __name__ == '__main__':
 
 
     object_classes = [
-            "../data/test_objs/ycb/004_sugar_box/google_16k/",
-            "../data/test_objs/ycb/035_power_drill/google_16k/"
+            "./data/test_objs/ycb/004_sugar_box/google_16k/",
+            "./data/test_objs/ycb/035_power_drill/google_16k/"
     ]
     objs = []
     for i, obj_base_path in enumerate(object_classes):
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         resolution=[1920, 1200],
         file_format="JPEG")
 
-    env_map_path = "../data/env_maps/aerodynamics_workshop_4k.hdr"
+    env_map_path = "./data/env_maps/aerodynamics_workshop_4k.hdr"
     bsi.send_remote_call(
         "set_environment_map",
         path=env_map_path)
