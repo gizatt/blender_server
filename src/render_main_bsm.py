@@ -1,9 +1,8 @@
 import bpy
 import numpy as np
 import os
-import zmq
 
-import blender_scene_management as bsm
+import blender_scripts.blender_scene_management as bsm
 
 if __name__ == '__main__':
     bsm.initialize_scene()
@@ -44,7 +43,7 @@ if __name__ == '__main__':
     env_map_path = "../data/env_maps/aerodynamics_workshop_4k.hdr"
     bsm.register_environment_map("env_map", path=env_map_path)
 
-    bsm.save_current_scene('./tmp/save.blend')
+    bsm.save_current_scene('./out/save.blend')
 
     for i in range(10):
         for obj_tmp in objs:
@@ -53,5 +52,5 @@ if __name__ == '__main__':
                 location=np.random.uniform(-0.4, 0.4),
                 quaternion=np.random.uniform(-0.4, 0.4))
 
-        bsm.configure_rendering(filepath="pic%0.2d.jpg" % i)
+        bsm.configure_rendering(filepath="./out/pic%0.2d.jpg" % i)
         bsm.render()

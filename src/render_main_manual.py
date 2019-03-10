@@ -94,7 +94,8 @@ if __name__ == '__main__':
     #physics_utils.enable_physics_rigidbody(plane_obj, type='PASSIVE')
     #physics_utils.disable_physics_rigidbody(obj_1)
 
-    blender_utils.save_current_scene('./tmp/save.blend')
+    os.system("mkdir -p ./out")
+    blender_utils.save_current_scene('./out/save.blend')
 
     for i in range(10):
         for obj_1 in objs:
@@ -107,5 +108,5 @@ if __name__ == '__main__':
             object_manip.set_obj_quaternion(obj_1, random_quat[0],
                 random_quat[1], random_quat[2], random_quat[3])
         bpy.context.scene.render.image_settings.file_format='JPEG'
-        bpy.context.scene.render.filepath = "pic%0.2d.jpg"%i
+        bpy.context.scene.render.filepath = "./out/pic%0.2d.jpg"%i
         bpy.ops.render.render(use_viewport=False, write_still=True)
