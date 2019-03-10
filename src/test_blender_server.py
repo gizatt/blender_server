@@ -1,4 +1,6 @@
+import matplotlib.pyplot as plt
 import numpy as np
+import scipy as sp
 import zmq
 import sys
 import time
@@ -69,7 +71,8 @@ if __name__ == '__main__':
 
     bsi.send_remote_call("save_current_scene", path="./out/save.blend")
 
-    for i in range(1):
+    plt.figure()
+    for i in range(1000):
         for obj_tmp in objs:
             loc = [np.random.uniform(-0.4, 0.4),
                    np.random.uniform(-0.4, 0.4),
@@ -87,4 +90,7 @@ if __name__ == '__main__':
             "configure_rendering",
             camera_name='cam_1', 
             filepath="./out/pic%0.2d.jpg" % i)
-        bsi.send_remote_call("render", camera_name="cam_1")
+        im = bsi.render_image("cam_1")
+
+        plt.imshow(im)
+        plt.pause(0.01)

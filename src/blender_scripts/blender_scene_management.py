@@ -1,5 +1,7 @@
 import bpy
+import numpy as np
 import os
+import time
 
 import blender_scripts.object_manip as object_manip
 import blender_scripts.utils as blender_utils
@@ -174,3 +176,14 @@ def save_current_scene(path):
 def render(camera_name, write_still=True):
     bpy.context.scene.camera = bpy.context.scene.objects[camera_name]
     bpy.ops.render.render(use_viewport=False, write_still=write_still)
+
+def render_and_return_image_bytes(camera_name):
+    bpy.context.scene.camera = bpy.context.scene.objects[camera_name]
+    
+    output_file = "/tmp/blender_server_%d.jpg" % (time.time() * 1000 * 1000)
+    old_filepath = bpy.context.scene.render.filepath
+    bpy.context.scene.render.filepath = output_file
+    bpy.ops.render.render(use_viewport=False, write_still=True)
+    bpy.context.scene.render.filepath = old_filepath
+
+    return open(output_file, 'rb').read()

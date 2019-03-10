@@ -74,3 +74,4 @@ if __name__ == '__main__':
             camera_name='cam_1', 
             filepath="./out/pic%0.2d.jpg" % i)
         bsm.render("cam_1")
+        print(bsm.render_and_return_image_bytes("cam_1"))

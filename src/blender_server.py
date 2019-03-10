@@ -4,15 +4,25 @@ import os
 import sys
 import zmq
 
-# Literally all this does right now is receive JSON
-# message of the form
-# {
-#   command_name: <string>,
-#   args: {arg dict}
-# }
-# and call bsm.command_name(**args)
-# as a way of remotely operating
-# the bsm.
+'''
+  The server provides minimal operating functionality:
+
+  Remote command interface, for remotely piloting
+  any function in the blender scene management module: 
+  Send a JSON dict of this form:
+  {
+    func: <string of the function name>,
+    args: {arg dict}
+  }
+
+  returns "Success" if it works as a string,
+  "Failure: " + error details otherwise. Error
+  handling definitely not guaranteed...
+
+  If you call "render_and_return_image_bytes", it'll
+  return the image bytes (jpeg bytes) instead of "Success".
+'''
+
 
 # TODO(gizatt) Why is this required?
 # Why isn't current launch dir included in sys.path?
@@ -37,9 +47,12 @@ if __name__ == '__main__':
             cmd_name = msg["func"]
             args = msg["args"]
 
-            getattr(bsm, cmd_name)(**args)
+            ret = getattr(bsm, cmd_name)(**args)
 
-            socket.send(b"Success")
+            if cmd_name == "render_and_return_image_bytes":
+                socket.send(ret)
+            else:
+                socket.send(b"Success")
         
         except KeyError as e:
             print("KeyError: ", e)
