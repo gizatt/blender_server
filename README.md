@@ -4,7 +4,7 @@ Remote-Operated Blender
 Provides:
 - Some convenient abstractions for setting up simple scenes
 of textured meshes:
-   - `src/blender_scripts/blender_scene_management.py` provides
+   - `blender_scripts/blender_scene_management.py` provides
    the highest-level abstractions, and builds (in a handful of
    places) on the other scripts in that folder (provided by
    Wei Gao, possibly adapted from elsewhere? not sure of their
@@ -17,6 +17,13 @@ telling the Blender server to call any of those high-level
 functions with arbitrary serializable arguments. It also has
 a special command for getting an image back (currently a serialized
 jpeg).
+
+
+## Usage + Examples
+
+- Using the abstraction layer itself from Blender: launch `render_main_bsm.py` with Blender, using e.g. `run_example_bsh.sh`.
+- Using the Blender server: launch the Blender server with blender, using e.g. `run_blender_server.sh`. Then run `test_blender_server.py` with any Python that has `zmq`, `numpy`, and `imageio`.	
+- Using the lower-level utilities: launch `render_main_manual.py` with Blender, using e.g. `run_example_manual.sh`.
 
 
 ## Setup
