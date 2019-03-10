@@ -1,16 +1,21 @@
 import bpy
 import numpy as np
 import os
+import sys
 
+# TODO(gizatt) Why is this required?
+# Why isn't current launch dir included in sys.path?
+print(sys.path)
+sys.path.append("/home/gizatt/tools/blender_server/src/")
 import blender_scripts.blender_scene_management as bsm
 
 if __name__ == '__main__':
     bsm.initialize_scene()
 
-    metal26_path = "../data/pbr_mats/Metal26/Metal26"
+    metal26_path = "../data/test_pbr_mats/Metal26/Metal26"
     bsm.register_material("metal26",
-                          path=metal26_path,
-                          type="CC0_texture")
+                          material_type="CC0_texture",
+                          path=metal26_path)
 
     plane_path = "../data/objects/plane.obj"
     bsm.register_object("obj_table",
@@ -25,8 +30,8 @@ if __name__ == '__main__':
             os.path.join(data_root, "test_objs/ycb/035_power_drill/google_16k/")]):
         tex_path = obj_base_path + "texture_map.png"
         bsm.register_material("obj_%d_color" % i,
-                              path=tex_path,
-                              type="color")
+                              material_type="color_texture",
+                              path=tex_path)
         bsm.register_object("obj_%d" % i,
                             path=obj_base_path + "textured.obj",
                             scale=[1., 1., 1.],
