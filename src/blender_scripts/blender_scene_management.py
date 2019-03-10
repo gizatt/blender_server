@@ -10,12 +10,10 @@ import blender_scripts.renderer_option as renderer_option
 import blender_scripts.physics_utils as physics_utils
 
 def initialize_scene():
-    lighting_utils.remove_all_lights()
-    
-    cameras = bpy.ops.object.select_by_type(type='CAMERA')
-    for cam in cameras:
-        bpy.ops.object.delete(use_global=False)
-
+    bpy.ops.wm.read_homefile(use_empty=True)
+    # Add a world
+    bpy.ops.world.new()
+    bpy.context.scene.world = bpy.data.worlds[0]
 
 def populate_image_node_from_file(nodes, path):
     image = bpy.data.images.load(path, check_existing=True)
