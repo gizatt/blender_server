@@ -35,8 +35,9 @@ on Mac, it might work on Windows... but that's not tested yet.
 I recommend downloading Blender from [their website](https://www.blender.org/)
 and installing it locally. (I put it in `~/tools/blender-2.80`.) Make
 an environment variable named `BLENDER_PATH` that points to the blender
-executable by putting this at the end of your ~/.bashrc (or do something
+executable by putting this at the end of your `~/.bashrc` (or do something
 equivalent):
+
 ```
 export BLENDER_PATH=/home/gizatt/tools/blender-2.80/blender
 ```
