@@ -94,7 +94,8 @@ def register_object(name, path,
                     location=None,
                     quaternion=None,
                     scale=None,
-                    material=None):
+                    material=None,
+                    **kwargs):
     object_manip.import_obj_model(path, name=name)
     obj = bpy.context.scene.objects[name]
     if location is not None:
@@ -111,6 +112,8 @@ def register_object(name, path,
             obj.scale = [scale]*3
     if material is not None:
         obj.active_material = bpy.data.materials[material].copy()
+    for key, value in kwargs.items():
+        setattr(obj, key, value)
 
 def update_parameters(name,
                       **kwargs):

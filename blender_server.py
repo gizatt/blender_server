@@ -56,6 +56,6 @@ if __name__ == '__main__':
         
         except KeyError as e:
             print("KeyError: ", e)
-            socket.send(b"Failure: " + str(e))
+            socket.send(b"Failure: " + str(e).encode('ascii'))
 
 

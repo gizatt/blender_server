@@ -7,11 +7,11 @@ import zmq
 
 
 class BlenderServerInterface():
-    def __init__(self, port=5556):
-        self.port = port
+    def __init__(self, zmq_url="tcp://127.0.0.1:5556"):
+        self.zmq_url = zmq_url
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PAIR)
-        self.socket.connect("tcp://localhost:%s" % str(self.port))
+        self.socket.connect(self.zmq_url)
 
     def _construct_remote_call_json(self, func, **kwargs):
         return {
@@ -23,7 +23,9 @@ class BlenderServerInterface():
         self.socket.send_json(
             self._construct_remote_call_json(
                 func, **kwargs))
-        print("Resp: ", self.socket.recv())
+        resp = self.socket.recv()
+        print("Resp: ", resp)
+        return resp == "Success"
 
     def render_image(self, camera_name):
         self.socket.send_json(
