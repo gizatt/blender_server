@@ -128,6 +128,19 @@ def register_object(name, type,
     for key, value in kwargs.items():
         setattr(obj, key, value)
 
+def register_light(name,
+                   type="POINT",
+                   location=None,
+                   energy=None):
+    bpy.ops.object.light_add(type=type)
+    obj = bpy.context.selected_objects[0]
+    obj.name = name
+    obj.data.use_contact_shadow = True
+    if location is not None:
+        obj.location = location
+    if energy is not None:
+        obj.data.energy = energy
+
 def update_parameters(name,
                       **kwargs):
     try:

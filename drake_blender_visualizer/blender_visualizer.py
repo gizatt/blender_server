@@ -52,7 +52,8 @@ class BlenderColorCamera(LeafSystem):
                  scene_graph,
                  zmq_url="default",
                  draw_period=0.033333,
-                 material_overrides=[]):
+                 material_overrides=[],
+                 additional_lights=[]):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -68,7 +69,10 @@ class BlenderColorCamera(LeafSystem):
                 specific address.
             material_overrides: A list of tuples of regex rules and
                 material override arguments to be passed into a
-                a register material call.
+                a register material call, not including names. (Those are
+                assigned automatically by this class.)
+            additional_lights: A list of dicts of additional lights to add,
+                as arguments (including names).
 
         Note: This call will not return until it connects to the
               Blender server.
@@ -98,6 +102,7 @@ class BlenderColorCamera(LeafSystem):
         # Compile regex for the material overrides
         self.material_overrides = [
             (re.compile(x[0]), x[1]) for x in material_overrides]
+        self.additional_lights = additional_lights
         def on_initialize(context, event):
             self.load()
 
@@ -130,6 +135,10 @@ class BlenderColorCamera(LeafSystem):
         fully constructed diagram (e.g. via `DiagramBuilder.Build()`).
         """
         self.bsi.send_remote_call("initialize_scene")
+
+        for light in self.additional_lights:
+            self.bsi.send_remote_call("register_light",
+                **light)
 
         # Intercept load message via mock LCM.
         mock_lcm = DrakeMockLcm()
@@ -261,7 +270,7 @@ class BlenderColorCamera(LeafSystem):
         self.bsi.send_remote_call(
             "configure_rendering",
             camera_name='cam_1',
-            resolution=[1280, 720],
+            resolution=[640, 480],
             file_format="JPEG")
 
         env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
@@ -332,7 +341,8 @@ if __name__ == "__main__":
             (".*cupboard.*door.*",
             {"material_type": "CC0_texture",
              "path": "data/test_pbr_mats/Wood08/Wood08"})
-        ]))
+        ],
+        additional_lights=[]))
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     blender_cam.get_input_port(0))
 
