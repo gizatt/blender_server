@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import math
 import os
+import re
 import time
 import warnings
 
@@ -50,7 +51,8 @@ class BlenderColorCamera(LeafSystem):
     def __init__(self,
                  scene_graph,
                  zmq_url="default",
-                 draw_period=0.033333):
+                 draw_period=0.033333,
+                 material_overrides=[]):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -64,6 +66,9 @@ class BlenderColorCamera(LeafSystem):
                 will be opened (the url will also be printed to the console).
                 Use e.g. zmq_url="tcp://127.0.0.1:5556" to specify a
                 specific address.
+            material_overrides: A list of tuples of regex rules and
+                material override arguments to be passed into a
+                a register material call.
 
         Note: This call will not return until it connects to the
               Blender server.
@@ -90,6 +95,9 @@ class BlenderColorCamera(LeafSystem):
         print("Connected to Blender server.")
         self._scene_graph = scene_graph
 
+        # Compile regex for the material overrides
+        self.material_overrides = [
+            (re.compile(x[0]), x[1]) for x in material_overrides]
         def on_initialize(context, event):
             self.load()
 
@@ -157,6 +165,16 @@ class BlenderColorCamera(LeafSystem):
                 material_key = "material_" + geom_name
                 material_key_assigned = False
 
+                # Check overrides
+                for override in self.material_overrides:
+                    if override[0].match(geom_name):
+                        print("Using override ", override[0].pattern, " to args ", override[1])
+                        self.bsi.send_remote_call(
+                            "register_material",
+                            name=material_key,
+                            **(override[1]))
+                        material_key_assigned = True
+
                 if geom.type == geom.BOX:
                     assert geom.num_float_data == 3
                     # Blender cubes are 2x2x2 by default
@@ -210,7 +228,7 @@ class BlenderColorCamera(LeafSystem):
                     # that we visualize what the simulation is *actually* reasoning about
                     # rather than what files happen to be present.
                     candidate_texture_path_png = geom.string_data[0:-3] + "png"
-                    if os.path.exists(candidate_texture_path_png):
+                    if not material_key_assigned and os.path.exists(candidate_texture_path_png):
                         material_key_assigned = self.bsi.send_remote_call(
                             "register_material",
                             name=material_key,
@@ -252,7 +270,6 @@ class BlenderColorCamera(LeafSystem):
             path=env_map_path)
 
         self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene.blend")
-
 
 
     def _DoPublish(self, context, event):
@@ -304,7 +321,18 @@ if __name__ == "__main__":
                     meshcat.get_input_port(0))
 
     blender_cam = builder.AddSystem(BlenderColorCamera(
-        station.get_scene_graph()))
+        station.get_scene_graph(),
+        material_overrides=[
+            (".*amazon_table.*",
+            {"material_type": "CC0_texture",
+             "path": "data/test_pbr_mats/Metal09/Metal09"}),
+            (".*cupboard_body.*",
+            {"material_type": "CC0_texture",
+             "path": "data/test_pbr_mats/Wood15/Wood15"}),
+            (".*cupboard.*door.*",
+            {"material_type": "CC0_texture",
+             "path": "data/test_pbr_mats/Wood08/Wood08"})
+        ]))
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     blender_cam.get_input_port(0))
 
