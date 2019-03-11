@@ -52,8 +52,9 @@ class BlenderColorCamera(LeafSystem):
                  scene_graph,
                  zmq_url="default",
                  draw_period=0.033333,
+                 camera_tf=Isometry3(),
                  material_overrides=[],
-                 additional_lights=[]):
+                 global_transform=Isometry3()):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -67,12 +68,12 @@ class BlenderColorCamera(LeafSystem):
                 will be opened (the url will also be printed to the console).
                 Use e.g. zmq_url="tcp://127.0.0.1:5556" to specify a
                 specific address.
+            camera tf: Isometry3 camera tf.
             material_overrides: A list of tuples of regex rules and
                 material override arguments to be passed into a
                 a register material call, not including names. (Those are
                 assigned automatically by this class.)
-            additional_lights: A list of dicts of additional lights to add,
-                as arguments (including names).
+            global transform: Isometry3 that gets premultiplied to every object.
 
         Note: This call will not return until it connects to the
               Blender server.
@@ -102,7 +103,8 @@ class BlenderColorCamera(LeafSystem):
         # Compile regex for the material overrides
         self.material_overrides = [
             (re.compile(x[0]), x[1]) for x in material_overrides]
-        self.additional_lights = additional_lights
+        self.global_transform = global_transform
+        self.camera_tf = camera_tf
         def on_initialize(context, event):
             self.load()
 
@@ -135,10 +137,6 @@ class BlenderColorCamera(LeafSystem):
         fully constructed diagram (e.g. via `DiagramBuilder.Build()`).
         """
         self.bsi.send_remote_call("initialize_scene")
-
-        for light in self.additional_lights:
-            self.bsi.send_remote_call("register_light",
-                **light)
 
         # Intercept load message via mock LCM.
         mock_lcm = DrakeMockLcm()
@@ -261,11 +259,13 @@ class BlenderColorCamera(LeafSystem):
 
             self.link_subgeometry_local_tfs_by_link_name[link.name] = tfs
 
+        camera_tf_post = self.global_transform.multiply(self.camera_tf)
         self.bsi.send_remote_call(
-        "register_camera",
-        name="cam_1",
-        location=[-.75, -.75, .5],
-        quaternion=[-0.677, -0.604, 0.242, 0.365])
+            "register_camera",
+            name="cam_1",
+            location=camera_tf_post.translation().tolist(),
+            quaternion=camera_tf_post.quaternion().wxyz().tolist(),
+            angle=90)
 
         self.bsi.send_remote_call(
             "configure_rendering",
@@ -294,7 +294,10 @@ class BlenderColorCamera(LeafSystem):
             model_id = pose_bundle.get_model_instance_id(frame_i)
             pose_matrix = pose_bundle.get_pose(frame_i)
             for j in range(self.num_link_geometries_by_link_name[link_name]):
-                offset = Isometry3(pose_matrix.matrix().dot(self.link_subgeometry_local_tfs_by_link_name[link_name][j]))
+                offset = Isometry3(
+                    self.global_transform.matrix().dot(
+                        pose_matrix.matrix().dot(
+                            self.link_subgeometry_local_tfs_by_link_name[link_name][j])))
                 location = offset.translation()
                 quaternion = offset.quaternion().wxyz()
                 geom_name = self._format_geom_name(source_name, frame_name, model_id, j)
@@ -329,8 +332,14 @@ if __name__ == "__main__":
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     meshcat.get_input_port(0))
 
+    cam_quat_base = np.array([-0.25, -0.21, 0.56, 0.76])
+    cam_quat_base /= np.linalg.norm(cam_quat_base)
+    offset_quat_base = np.array([0.952, 0., 0., 0.305])
+    offset_quat_base /= np.linalg.norm(offset_quat_base)
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
+        camera_tf=Isometry3(translation=[-0.04, 0.6, 0.59],
+                            quaternion=Quaternion(cam_quat_base)),
         material_overrides=[
             (".*amazon_table.*",
             {"material_type": "CC0_texture",
@@ -342,7 +351,9 @@ if __name__ == "__main__":
             {"material_type": "CC0_texture",
              "path": "data/test_pbr_mats/Wood08/Wood08"})
         ],
-        additional_lights=[]))
+        global_transform=Isometry3(translation=[0, 0, 0],
+                                   quaternion=Quaternion(offset_quat_base))
+    ))
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     blender_cam.get_input_port(0))
 

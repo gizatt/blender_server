@@ -168,16 +168,20 @@ def set_environment_map(path):
 
 def register_camera(name,
                     location=None,
-                    quaternion=None):
+                    quaternion=None,
+                    angle=None):
     bpy.ops.object.camera_add()
     cam = bpy.context.active_object
     cam.name = name
+    cam.data.name = name
     print(cam, cam.name)
     if location is not None:
         cam.location = location
     if quaternion is not None:
         cam.rotation_mode = 'QUATERNION'
         cam.rotation_quaternion = quaternion
+    if angle is not None:
+        cam.data.angle = angle
 
 def configure_rendering(camera_name,
                         resolution=None,
