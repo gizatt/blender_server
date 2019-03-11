@@ -18,6 +18,7 @@ telling the Blender server to call any of those high-level
 functions with arbitrary serializable arguments. It also has
 a special command for getting an image back (currently a serialized
 jpeg).
+- A usage example for [Drake](github.com/RobotLocomotion/drake) (in the `drake_blender_visualizer` folder) that uses the Blender server to render images of a robot simulation scene. (This will eventually be moved out of this repo, but it's convenient to me to keep it here for now. :P)
 
 
 ## Usage + Examples
