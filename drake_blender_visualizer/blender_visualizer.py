@@ -25,7 +25,8 @@ from pydrake.multibody.plant import ContactResults
 
 from pydrake.common import FindResourceOrThrow
 from pydrake.examples.manipulation_station import (
-    ManipulationStation)
+    ManipulationStation,
+    CreateDefaultYcbObjectList)
 from pydrake.manipulation.simple_ui import JointSliders, SchunkWsgButtons
 from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
@@ -80,6 +81,7 @@ class BlenderColorCamera(LeafSystem):
         """
         LeafSystem.__init__(self)
 
+        self.published_scene = False
         self.set_name('blender_color_camera')
         self._DeclarePeriodicPublish(draw_period, 0.0)
         self.draw_period = draw_period
@@ -278,9 +280,6 @@ class BlenderColorCamera(LeafSystem):
             "set_environment_map",
             path=env_map_path)
 
-        self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene.blend")
-
-
     def _DoPublish(self, context, event):
         # TODO(russt): Change this to declare a periodic event with a
         # callback instead of overriding _DoPublish, pending #9992.
@@ -313,7 +312,11 @@ class BlenderColorCamera(LeafSystem):
             camera_name='cam_1', 
             filepath="/tmp/drake_blender_vis_scene_render_%d.jpg" % (time.time()*1000*1000))
         im = self.bsi.render_image("cam_1")
-        self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene_%d.blend" % (time.time()*1000*1000))
+
+        if not self.published_scene:
+            self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene.blend")
+            self.published_scene = True
+        #self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene_%d.blend" % (time.time()*1000*1000))
 
         plt.imshow(im)
         plt.pause(0.01)
@@ -325,6 +328,11 @@ if __name__ == "__main__":
     
     station = builder.AddSystem(ManipulationStation())
     station.SetupDefaultStation()
+    #ycp_obj_list = CreateDefaultYcbObjectList()
+    #for pair in ycp_obj_list:
+    #    station.AddManipulandFromFile(
+    #        model_file=pair[0],
+    #        X_WObject=pair[1])
     station.Finalize()
 
     meshcat = builder.AddSystem(MeshcatVisualizer(
@@ -336,8 +344,13 @@ if __name__ == "__main__":
     cam_quat_base /= np.linalg.norm(cam_quat_base)
     offset_quat_base = np.array([0.952, 0., 0., 0.305])
     offset_quat_base /= np.linalg.norm(offset_quat_base)
+    # Other side, lit by window. Highlights bad textures of
+    # the IIWA :P
+    #offset_quat_base = np.array([-0.305, 0., 0., 0.952])
+    #offset_quat_base /= np.linalg.norm(offset_quat_base)
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
+        draw_period=0.0333,
         camera_tf=Isometry3(translation=[-0.04, 0.6, 0.59],
                             quaternion=Quaternion(cam_quat_base)),
         material_overrides=[
