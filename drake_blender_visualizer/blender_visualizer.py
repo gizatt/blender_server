@@ -275,7 +275,7 @@ class BlenderColorCamera(LeafSystem):
             resolution=[1280, 720],
             file_format="JPEG")
 
-        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
+        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/lab_from_phone.jpg"
         self.bsi.send_remote_call(
             "set_environment_map",
             path=env_map_path)
@@ -352,29 +352,26 @@ if __name__ == "__main__":
     #builder.Connect(station.GetOutputPort("pose_bundle"),
     #                meshcat.get_input_port(0))
 
-    cam_quat_base = np.array([-0.25, -0.21, 0.56, 0.76])
-    cam_quat_base /= np.linalg.norm(cam_quat_base)
-    offset_quat_base = np.array([0.952, 0., 0., 0.305])
-    offset_quat_base /= np.linalg.norm(offset_quat_base)
-    # Other side, lit by window. Highlights bad textures of
-    # the IIWA :P
-    #offset_quat_base = np.array([-0.305, 0., 0., 0.952])
-    #offset_quat_base /= np.linalg.norm(offset_quat_base)
+    cam_quat_base = RollPitchYaw(
+        81.8*np.pi/180.,
+        -5.*np.pi/180,
+        (129.+90)*np.pi/180.).ToQuaternion().wxyz()
+    offset_quat_base = RollPitchYaw(0., 0., -np.pi/2).ToQuaternion().wxyz()
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         draw_period=0.0333,
-        camera_tf=Isometry3(translation=[-0.2, 0.7, 0.59],
+        camera_tf=Isometry3(translation=[-0.196, 0.816, 0.435],
                             quaternion=Quaternion(cam_quat_base)),
         material_overrides=[
             (".*amazon_table.*",
-            {"material_type": "CC0_texture",
-             "path": "data/test_pbr_mats/Metal09/Metal09"}),
+                {"material_type": "CC0_texture",
+                 "path": "data/test_pbr_mats/Metal09/Metal09"}),
             (".*cupboard_body.*",
-            {"material_type": "CC0_texture",
-             "path": "data/test_pbr_mats/Wood15/Wood15"}),
+                {"material_type": "CC0_texture",
+                 "path": "data/test_pbr_mats/Wood15/Wood15"}),
             (".*cupboard.*door.*",
-            {"material_type": "CC0_texture",
-             "path": "data/test_pbr_mats/Wood08/Wood08"})
+                {"material_type": "CC0_texture",
+                 "path": "data/test_pbr_mats/Wood08/Wood08"})
         ],
         global_transform=Isometry3(translation=[0, 0, 0],
                                    quaternion=Quaternion(offset_quat_base))
