@@ -16,7 +16,7 @@ from drake import lcmt_viewer_load_robot
 from pydrake.common.eigen_geometry import Quaternion
 from pydrake.geometry import DispatchLoadMessage, SceneGraph
 from pydrake.lcm import DrakeMockLcm
-from pydrake.math import RigidTransform, RotationMatrix
+from pydrake.math import RigidTransform, RotationMatrix, RollPitchYaw
 from pydrake.systems.framework import (
     AbstractValue, LeafSystem, PublishEvent, TriggerType
 )
@@ -81,7 +81,7 @@ class BlenderColorCamera(LeafSystem):
         """
         LeafSystem.__init__(self)
 
-        self.published_scene = False
+        self.current_publish_num = 0
         self.set_name('blender_color_camera')
         self._DeclarePeriodicPublish(draw_period, 0.0)
         self.draw_period = draw_period
@@ -306,16 +306,15 @@ class BlenderColorCamera(LeafSystem):
                     location=location.tolist(),
                     rotation_mode='QUATERNION',
                     rotation_quaternion=quaternion.tolist())
+            
+        im = self.bsi.render_image(
+            "cam_1",
+            filepath="/tmp/drake_blender_vis_scene_render_%08d.jpg" % (self.current_publish_num))
 
-        self.bsi.send_remote_call(
-            "configure_rendering",
-            camera_name='cam_1', 
-            filepath="/tmp/drake_blender_vis_scene_render_%d.jpg" % (time.time()*1000*1000))
-        im = self.bsi.render_image("cam_1")
-
-        if not self.published_scene:
+        if self.current_publish_num == 0:
             self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene.blend")
             self.published_scene = True
+        self.current_publish_num += 1
         #self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene_%d.blend" % (time.time()*1000*1000))
 
         plt.imshow(im)
@@ -328,17 +327,30 @@ if __name__ == "__main__":
     
     station = builder.AddSystem(ManipulationStation())
     station.SetupDefaultStation()
-    #ycp_obj_list = CreateDefaultYcbObjectList()
-    #for pair in ycp_obj_list:
-    #    station.AddManipulandFromFile(
-    #        model_file=pair[0],
-    #        X_WObject=pair[1])
+
+    new_obj_list = [
+        ['drake/manipulation/models/ycb/sdf/003_cracker_box.sdf',
+         RigidTransform(rpy=RollPitchYaw([0.72, -12.3, 0.7]), p=[0.55, 0.2, 0.2])],
+        ['drake/manipulation/models/ycb/sdf/004_sugar_box.sdf',
+         RigidTransform(rpy=RollPitchYaw([1.1, 0.5, -0.6]), p=[0.45, 0.10, 0.15])],
+        ['drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf',
+         RigidTransform(rpy=RollPitchYaw([1.2, 0., 0.3]), p=[0.4, -0.2, 0.15])],
+        ['drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf',
+         RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.3, -0.1, 0.1])],
+        ['drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf',
+         RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.35, 0.05, 0.1])]
+    ]
+
+    for pair in new_obj_list:
+        station.AddManipulandFromFile(
+            model_file=pair[0],
+            X_WObject=pair[1])
     station.Finalize()
 
-    meshcat = builder.AddSystem(MeshcatVisualizer(
-            station.get_scene_graph()))
-    builder.Connect(station.GetOutputPort("pose_bundle"),
-                    meshcat.get_input_port(0))
+    #meshcat = builder.AddSystem(MeshcatVisualizer(
+    #        station.get_scene_graph()))
+    #builder.Connect(station.GetOutputPort("pose_bundle"),
+    #                meshcat.get_input_port(0))
 
     cam_quat_base = np.array([-0.25, -0.21, 0.56, 0.76])
     cam_quat_base /= np.linalg.norm(cam_quat_base)
@@ -351,7 +363,7 @@ if __name__ == "__main__":
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         draw_period=0.0333,
-        camera_tf=Isometry3(translation=[-0.04, 0.6, 0.59],
+        camera_tf=Isometry3(translation=[-0.2, 0.7, 0.59],
                             quaternion=Quaternion(cam_quat_base)),
         material_overrides=[
             (".*amazon_table.*",
@@ -397,6 +409,7 @@ if __name__ == "__main__":
     # Eval the output port once to read the initial positions of the IIWA.
     q0 = station.GetOutputPort("iiwa_position_measured").Eval(
         station_context)
+    q0[:] = [0., 0.5, 0., -1.75, 0., 1., 0.]
     teleop.set_position(q0)
     filter.set_initial_output_value(diagram.GetMutableSubsystemContext(
         filter, simulator.get_mutable_context()), q0)

@@ -29,9 +29,10 @@ class BlenderServerInterface():
             print(resp)
         return success
 
-    def render_image(self, camera_name):
+    def render_image(self, camera_name, filepath=None):
         self.socket.send_json(
             {"func": "render_and_return_image_bytes",
-             "args": {"camera_name": camera_name}})
+             "args": {"camera_name": camera_name,
+                      "filepath": filepath}})
         im_buffer = self.socket.recv()
         return imageio.imread(io.BytesIO(im_buffer))
