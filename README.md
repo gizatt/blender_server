@@ -1,5 +1,6 @@
 Remote-Operated Blender
 -----------------------
+![Demo video](drake_blender_visualizer/video.gif "Demo video")
 
 Provides:
 - Some convenient abstractions for setting up simple scenes
