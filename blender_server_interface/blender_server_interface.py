@@ -24,8 +24,10 @@ class BlenderServerInterface():
             self._construct_remote_call_json(
                 func, **kwargs))
         resp = self.socket.recv()
-        print("Resp: ", resp)
-        return resp == "Success"
+        success = resp == "Success"
+        if not success:
+            print(resp)
+        return success
 
     def render_image(self, camera_name):
         self.socket.send_json(

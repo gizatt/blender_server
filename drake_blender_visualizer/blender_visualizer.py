@@ -100,6 +100,20 @@ class BlenderColorCamera(LeafSystem):
 
         plt.figure()
 
+    def _parse_name(self, name):
+        # Parse name, split on the first (required) occurrence of `::` to get
+        # the source name, and let the rest be the frame name.
+        # TODO(eric.cousineau): Remove name parsing once #9128 is resolved.
+        delim = "::"
+        assert delim in name
+        pos = name.index(delim)
+        source_name = name[:pos]
+        frame_name = name[pos + len(delim):]
+        return source_name, frame_name
+
+    def _format_geom_name(self, source_name, frame_name, model_id, i):
+        return "{}::{}::{}::{}".format(source_name, model_id, frame_name, i)
+
     def load(self):
         """
         Loads all visualization elements in the Blender server.
@@ -110,58 +124,79 @@ class BlenderColorCamera(LeafSystem):
         self.bsi.send_remote_call("initialize_scene")
 
         # Intercept load message via mock LCM.
-        self.scales_by_obj_id = {}
-
         mock_lcm = DrakeMockLcm()
         DispatchLoadMessage(self._scene_graph, mock_lcm)
         load_robot_msg = lcmt_viewer_load_robot.decode(
             mock_lcm.get_last_published_message("DRAKE_VIEWER_LOAD_ROBOT"))
         # Load all the elements over on the Blender side.
+        self.num_link_geometries_by_link_name = {}
+        self.link_subgeometry_local_tfs_by_link_name = {}
         for i in range(load_robot_msg.num_links):
             link = load_robot_msg.link[i]
+            [source_name, frame_name] = self._parse_name(link.name)
+            self.num_link_geometries_by_link_name[link.name] = link.num_geom
 
+            tfs = []
             for j in range(link.num_geom):
                 geom = link.geom[j]
+
                 # MultibodyPlant currently sets alpha=0 to make collision
                 # geometry "invisible".  Ignore those geometries here.
                 if geom.color[3] == 0:
                     continue
 
+                geom_name = self._format_geom_name(source_name, frame_name, link.robot_num, j)
+
+                tfs.append(RigidTransform(
+                    RotationMatrix(Quaternion(geom.quaternion)),
+                    geom.position).GetAsMatrix4())
+
                 # It will have a material with this key.
                 # We will set it up after deciding whether it's
                 # a mesh with a texture or not...
-                material_key = "material_" + link.name
+                material_key = "material_" + geom_name
                 material_key_assigned = False
 
                 if geom.type == geom.BOX:
                     assert geom.num_float_data == 3
-                    continue
-                    #meshcat_geom = meshcat.geometry.Box(geom.float_data)
+                    # Blender cubes are 2x2x2 by default
+                    do_load_geom = lambda: self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="cube",
+                        scale=[x*0.5 for x in geom.float_data[:3]],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
 
                 elif geom.type == geom.SPHERE:
                     assert geom.num_float_data == 1
-                    continue
-                    # meshcat_geom = meshcat.geometry.Sphere(geom.float_data[0])
+                    do_load_geom = lambda: self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="sphere",
+                        scale=geom.float_data[0],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
 
                 elif geom.type == geom.CYLINDER:
                     assert geom.num_float_data == 2
-                    continue
-                    #meshcat_geom = meshcat.geometry.Cylinder(
-                    #    geom.float_data[1],
-                    #    geom.float_data[0])
-                    # In Drake, cylinders are along +z
-                    # In meshcat, cylinders are along +y
-                    # Rotate to fix this misalignment
-                    #extra_rotation = tf.rotation_matrix(
-                    #    math.pi/2., [1, 0, 0])
-                    #element_local_tf[0:3, 0:3] = (
-                    #    element_local_tf[0:3, 0:3].dot(
-                    #        extra_rotation[0:3, 0:3]))
-                elif geom.type == geom.MESH:
-                    self.scales_by_obj_id["obj_" + link.name] = geom.float_data[:3]
+                    # Blender cylinders are r=1, h=2 by default
                     do_load_geom = lambda: self.bsi.send_remote_call(
                         "register_object",
-                        name="obj_" + link.name,
+                        name="obj_" + geom_name,
+                        type="cylinder",
+                        scale=[geom.float_data[0], geom.float_data[0], 0.5*geom.float_data[1]],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
+
+                elif geom.type == geom.MESH:
+                    do_load_geom = lambda: self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="obj",
                         path=geom.string_data[0:-3] + "obj",
                         scale=geom.float_data[:3],
                         location=geom.position,
@@ -197,6 +232,8 @@ class BlenderColorCamera(LeafSystem):
                 # Finally actually load the geometry now that the material is registered.
                 do_load_geom()
 
+            self.link_subgeometry_local_tfs_by_link_name[link.name] = tfs
+
         self.bsi.send_remote_call(
         "register_camera",
         name="cam_1",
@@ -226,21 +263,21 @@ class BlenderColorCamera(LeafSystem):
         pose_bundle = self.EvalAbstractInput(context, 0).get_value()
 
         for frame_i in range(pose_bundle.get_num_poses()):
-            # SceneGraph currently sets the name in PoseBundle as
-            #    "get_source_name::frame_name".
             link_name = pose_bundle.get_name(frame_i)
-            obj_name = "obj_" + link_name
+            [source_name, frame_name] = self._parse_name(link_name)
+            model_id = pose_bundle.get_model_instance_id(frame_i)
             pose_matrix = pose_bundle.get_pose(frame_i)
-            location = pose_matrix.translation()
-            #if obj_name in self.scales_by_obj_id.keys():
-            #    location *= self.scales_by_obj_id[obj_name]
-            quaternion = pose_matrix.quaternion().wxyz()
-            self.bsi.send_remote_call(
-                "update_parameters",
-                name=obj_name,
-                location=location.tolist(),
-                rotation_mode='QUATERNION',
-                rotation_quaternion=quaternion.tolist())
+            for j in range(self.num_link_geometries_by_link_name[link_name]):
+                offset = Isometry3(pose_matrix.matrix().dot(self.link_subgeometry_local_tfs_by_link_name[link_name][j]))
+                location = offset.translation()
+                quaternion = offset.quaternion().wxyz()
+                geom_name = self._format_geom_name(source_name, frame_name, model_id, j)
+                self.bsi.send_remote_call(
+                    "update_parameters",
+                    name="obj_" + geom_name,
+                    location=location.tolist(),
+                    rotation_mode='QUATERNION',
+                    rotation_quaternion=quaternion.tolist())
 
         self.bsi.send_remote_call(
             "configure_rendering",

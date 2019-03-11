@@ -90,14 +90,27 @@ def register_material(name, material_type, path=None, color=None):
         raise IllegalArgumentException(
             "Invalid material_type %s" % material_type)
 
-def register_object(name, path,
+def register_object(name, type,
+                    path=None,
                     location=None,
                     quaternion=None,
                     scale=None,
                     material=None,
                     **kwargs):
-    object_manip.import_obj_model(path, name=name)
-    obj = bpy.context.scene.objects[name]
+
+    if type == "obj":
+        assert(path is not None)
+        bpy.ops.import_scene.obj(filepath=path)
+    elif type == "cube":
+        bpy.ops.mesh.primitive_cube_add()
+    elif type == "sphere":
+        bpy.ops.mesh.primitive_uv_sphere_add()
+    elif type == "cylinder":
+        bpy.ops.mesh.primitive_cylinder_add()
+    else:
+        raise NotImplementedException("Unsupported shape %s" % type)
+    obj = bpy.context.selected_objects[0]
+    obj.name = name
     if location is not None:
         obj.location = location
     if quaternion is not None:

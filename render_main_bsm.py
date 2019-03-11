@@ -17,11 +17,10 @@ if __name__ == '__main__':
                           material_type="CC0_texture",
                           path=metal26_path)
 
-    plane_path = "./data/test_objs/plane.obj"
     bsm.register_object("obj_table",
-                        path=plane_path,
-                        location=[0, 0, -0.35],
-                        scale=[0.1, 0.05, 0.1],
+                        type="cube",
+                        location=[0, 0, -0.45],
+                        scale=[1.0, 1.0, 0.25],
                         material="metal26")
 
 
@@ -38,6 +37,7 @@ if __name__ == '__main__':
         for k in range(2):
             obj_name = "obj_%d_%d" % (i, k)
             bsm.register_object(obj_name,
+                                type="obj",
                                 path=obj_base_path + "textured.obj",
                                 scale=[1., 1., 1.],
                                 material="obj_%d_color" % i)
@@ -74,4 +74,4 @@ if __name__ == '__main__':
             camera_name='cam_1', 
             filepath="./out/pic%0.2d.jpg" % i)
         bsm.render("cam_1")
-        print(bsm.render_and_return_image_bytes("cam_1"))
+        print("# of image bytes: %d" % len(bsm.render_and_return_image_bytes("cam_1")))

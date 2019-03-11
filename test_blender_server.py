@@ -19,13 +19,13 @@ if __name__ == '__main__':
         material_type="CC0_texture",
         path=metal26_path)
 
-    plane_path = "./data/test_objs/plane.obj"
+
     bsi.send_remote_call(
         "register_object",
         name="obj_table",
-        path=plane_path,
-        location=[0, 0, -0.35],
-        scale=[0.1, 0.05, 0.1],
+        type="cube",
+        location=[0, 0, -0.45],
+        scale=[1.0, 1.0, 0.25],
         material="metal26")
 
 
@@ -46,6 +46,7 @@ if __name__ == '__main__':
             bsi.send_remote_call(
                 "register_object",
                 name=obj_name,
+                type="obj",
                 path=obj_base_path + "textured.obj",
                 scale=[1., 1., 1.],
                 material="obj_%d_color" % i)
