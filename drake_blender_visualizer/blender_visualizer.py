@@ -175,7 +175,7 @@ class BlenderColorCamera(LeafSystem):
                 # Check overrides
                 for override in self.material_overrides:
                     if override[0].match(geom_name):
-                        print("Using override ", override[0].pattern, " to args ", override[1])
+                        print("Using override ", override[0].pattern, " on name ", geom_name, " with applied args ", override[1])
                         self.bsi.send_remote_call(
                             "register_material",
                             name=material_key,
@@ -270,7 +270,7 @@ class BlenderColorCamera(LeafSystem):
         self.bsi.send_remote_call(
             "configure_rendering",
             camera_name='cam_1',
-            resolution=[640, 480],
+            resolution=[1280, 720],
             file_format="JPEG")
 
         env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
