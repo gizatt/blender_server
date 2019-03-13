@@ -64,7 +64,7 @@ if __name__ == '__main__':
                    0.]
             quat = np.random.uniform(-1, 1, size=4)
             quat /= np.linalg.norm(quat)
-            bsm.update_parameters(
+            bsm.update_object_parameters(
                 obj_tmp,
                 location=loc,
                 rotation_mode='QUATERNION',

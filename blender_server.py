@@ -53,9 +53,7 @@ if __name__ == '__main__':
                 socket.send(ret)
             else:
                 socket.send(b"Success")
-        
-        except KeyError as e:
-            print("KeyError: ", e)
+
+        except Exception as e:
+            print("Unhandled exception from server: ", e)
             socket.send(b"Failure: " + str(e).encode('ascii'))
-
-

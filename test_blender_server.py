@@ -81,7 +81,7 @@ if __name__ == '__main__':
             quat = np.random.uniform(-1, 1, size=4)
             quat /= np.linalg.norm(quat)
             bsi.send_remote_call(
-                "update_parameters",
+                "update_object_parameters",
                 name=obj_tmp,
                 location=loc,
                 rotation_mode='QUATERNION',

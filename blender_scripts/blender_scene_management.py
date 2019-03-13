@@ -150,8 +150,8 @@ def register_light(name,
     if energy is not None:
         obj.data.energy = energy
 
-def update_parameters(name,
-                      **kwargs):
+def update_object_parameters(name,
+                             **kwargs):
     try:
         obj = bpy.context.scene.objects[name]
     except Exception as e:
@@ -162,6 +162,23 @@ def update_parameters(name,
             setattr(obj, arg_name, arg_value)
         except ValueError as e:
             print("ValueError setting object [%s]'s attr [%s] to [%s]." % 
+                  (name, arg_name, str(arg_value)))
+            print("ValueError details: ", e)
+
+def update_material_parameters(name,
+                               type,
+                               **kwargs):
+    # Much hackier than objects, as material live in a node tree...
+    try:
+        obj = bpy.data.materials[name]
+    except Exception as e:
+        raise e
+
+    for arg_name, arg_value in kwargs.items():
+        try:
+            obj.node_tree.nodes[type].inputs[arg_name].default_value  = arg_value
+        except ValueError as e:
+            print("ValueError setting material [%s]'s attr [%s] to [%s]." % 
                   (name, arg_name, str(arg_value)))
             print("ValueError details: ", e)
 
