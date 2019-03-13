@@ -38,10 +38,67 @@ from pydrake.util.eigen_geometry import Isometry3
 
 from blender_server.blender_server_interface.blender_server_interface import BlenderServerInterface
 
-def reorder_quat_wxyz_to_xyzw(quat):
-    if isinstance(quat, np.ndarray):
-        quat = quat.tolist()
-    return [quat[1], quat[2], quat[3], quat[0]]
+
+class BoundingBoxBundle(object):
+    def __init__(self, num_bboxes=0):
+        self.reset(num_bboxes)
+
+    def reset(self, num_bboxes):
+        self.num_bboxes = num_bboxes
+        self.scales = [[1., 1., 1] for n in range(num_bboxes)]
+        self.poses = [Isometry3() for n in range(num_bboxes)]
+        self.colors = [[1., 1., 1., 1.] for n in range(num_bboxes)]
+
+    def set_bbox_attributes(
+            self, box_i, scale=[1., 1., 1.], pose=Isometry3(),
+            color=[1., 1., 1., 1.]):
+        self.scales[box_i] = scale
+        self.poses[box_i] = pose
+        self.colors[box_i] = color
+
+    def get_num_bboxes(self):
+        return self.num_bboxes
+
+    def get_bbox_scale(self, box_i):
+        return self.scales[box_i]
+
+    def get_bbox_pose(self, box_i):
+        return self.poses[box_i]
+
+    def get_bbox_color(self, box_i):
+        return self.colors[box_i]
+
+
+class BoundingBoxBundleTestSource(LeafSystem):
+    def __init__(self):
+        LeafSystem.__init__(self)
+
+        self.iter = 0
+        self.set_name('dummy bbox publisher')
+        self._DeclarePeriodicPublish(0.03333, 0.0)
+
+        # Optional pose bundle of bounding boxes.
+
+        self.bbox_bundle_output_port = \
+            self._DeclareAbstractOutputPort(
+                self._DoAllocBboxBundle,
+                self._DoCalcAbstractOutput)
+
+    def _DoAllocBboxBundle(self):
+        return AbstractValue.Make(BoundingBoxBundle)
+
+    def _DoCalcAbstractOutput(self, context, y_data):
+        bbox_bundle = BoundingBoxBundle(2)
+        bbox_bundle.set_bbox_attributes(
+            0, scale=[0.1, 0.15, 0.2],
+            pose=RigidTransform(p=[0.5, 0., 0.1]).GetAsIsometry3(),
+            color=[1., 0., 0., 1.])
+        bbox_bundle.set_bbox_attributes(
+            1, scale=[0.05, 0.05, 0.05],
+            pose=RigidTransform(p=[0.4, 0.1, 0.1]).GetAsIsometry3(),
+            color=[0., 1., 1., 1.])
+        y_data.set_value(bbox_bundle)
+
 
 class BlenderColorCamera(LeafSystem):
     """
@@ -89,6 +146,10 @@ class BlenderColorCamera(LeafSystem):
         # Pose bundle (from SceneGraph) input port.
         self._DeclareAbstractInputPort("lcm_visualization",
                                        AbstractValue.Make(PoseBundle(0)))
+
+        # Optional pose bundle of bounding boxes.
+        self._DeclareAbstractInputPort("bounding_box_bundle",
+                                       AbstractValue.Make(BoundingBoxBundle(0)))
 
         if zmq_url == "default":
             zmq_url = "tcp://127.0.0.1:5556"
@@ -139,6 +200,15 @@ class BlenderColorCamera(LeafSystem):
         fully constructed diagram (e.g. via `DiagramBuilder.Build()`).
         """
         self.bsi.send_remote_call("initialize_scene")
+
+        # Keeps track of registered bounding boxes, to keep us from
+        # having to register + delete brand new objects every cycle.
+        # If more than this number is needed in a given cycle,
+        # more are registered and this number is increased.
+        # If less are needed, the unused ones are made invisible.
+        # The attributes of all bounding boxes are updated every cycle.
+        self.num_registered_bounding_boxes = 0
+        self.num_visible_bounding_boxes = 0
 
         # Intercept load message via mock LCM.
         mock_lcm = DrakeMockLcm()
@@ -287,6 +357,55 @@ class BlenderColorCamera(LeafSystem):
         LeafSystem._DoPublish(self, context, event)
 
         pose_bundle = self.EvalAbstractInput(context, 0).get_value()
+        bbox_bundle = self.EvalAbstractInput(context, 1)
+        if bbox_bundle:
+            bbox_bundle = bbox_bundle.get_value()
+            for k in range(bbox_bundle.get_num_bboxes()):
+                pose = self.global_transform.multiply(bbox_bundle.get_bbox_pose(k))
+                if (k + 1) > self.num_registered_bounding_boxes:
+                    # Register a new one
+                    self.bsi.send_remote_call(
+                            "register_material",
+                            name="mat_bb_%d" % k,
+                            material_type="color",
+                            color=bbox_bundle.get_bbox_color(k))
+                    self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_bb_%d" % k,
+                        type="cube",
+                        scale=[x/2 for x in bbox_bundle.get_bbox_scale(k)],
+                        location=pose.translation().tolist(),
+                        quaternion=pose.quaternion().wxyz().tolist(),
+                        material="mat_bb_%d" % k)
+                    self.bsi.send_remote_call(
+                        "apply_modifier_to_object",
+                        name="obj_bb_%d" % k,
+                        type="WIREFRAME",
+                        thickness=0.1)
+                    self.num_registered_bounding_boxes = k + 1
+                    self.num_visible_bounding_boxes = k + 1
+                else:
+                    # Update parameters of existing bbox + its material
+                    self.bsi.send_remote_call(
+                            "update_material_parameters",
+                            type="Principled BSDF",
+                            name="mat_bb_%d" % k,
+                            **{"Base Color": bbox_bundle.get_bbox_color(k)})
+                    self.bsi.send_remote_call(
+                            "update_object_parameters",
+                            name="obj_bb_%d" % k,
+                            scale=[x/2 for x in bbox_bundle.get_bbox_scale(k)],
+                            location=pose.translation().tolist(),
+                            rotation_mode='QUATERNION',
+                            rotation_quaternion=pose.quaternion().wxyz().tolist(),
+                            hide_render=False)
+                    self.num_visible_bounding_boxes = k + 1
+            for k in range(bbox_bundle.get_num_bboxes(),
+                           self.num_visible_bounding_boxes):
+                self.bsi.send_remote_call(
+                        "update_object_parameters",
+                        name="obj_bb_%d" % k,
+                        hide_render=True)
 
         for frame_i in range(pose_bundle.get_num_poses()):
             link_name = pose_bundle.get_name(frame_i)
@@ -302,7 +421,7 @@ class BlenderColorCamera(LeafSystem):
                 quaternion = offset.quaternion().wxyz()
                 geom_name = self._format_geom_name(source_name, frame_name, model_id, j)
                 self.bsi.send_remote_call(
-                    "update_parameters",
+                    "update_object_parameters",
                     name="obj_" + geom_name,
                     location=location.tolist(),
                     rotation_mode='QUATERNION',
@@ -333,16 +452,16 @@ if __name__ == "__main__":
     station.SetupDefaultStation()
 
     new_obj_list = [
-        ['drake/manipulation/models/ycb/sdf/003_cracker_box.sdf',
-         RigidTransform(rpy=RollPitchYaw([0.72, -12.3, 0.7]), p=[0.55, 0.2, 0.2])],
-        ['drake/manipulation/models/ycb/sdf/004_sugar_box.sdf',
-         RigidTransform(rpy=RollPitchYaw([1.1, 0.5, -0.6]), p=[0.45, 0.10, 0.15])],
-        ['drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf',
-         RigidTransform(rpy=RollPitchYaw([1.2, 0., 0.3]), p=[0.4, -0.2, 0.15])],
-        ['drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf',
-         RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.3, -0.1, 0.1])],
-        ['drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf',
-         RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.35, 0.05, 0.1])]
+      # ['drake/manipulation/models/ycb/sdf/003_cracker_box.sdf',
+      #  RigidTransform(rpy=RollPitchYaw([0.72, -12.3, 0.7]), p=[0.55, 0.2, 0.2])],
+      # ['drake/manipulation/models/ycb/sdf/004_sugar_box.sdf',
+      #  RigidTransform(rpy=RollPitchYaw([1.1, 0.5, -0.6]), p=[0.45, 0.10, 0.15])],
+      # ['drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf',
+      #  RigidTransform(rpy=RollPitchYaw([1.2, 0., 0.3]), p=[0.4, -0.2, 0.15])],
+      # ['drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf',
+      #  RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.3, -0.1, 0.1])],
+      # ['drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf',
+      #  RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.35, 0.05, 0.1])]
     ]
 
     for pair in new_obj_list:
@@ -367,7 +486,7 @@ if __name__ == "__main__":
     #cam_tfs = [cam_tf_base]
 
     cam_tfs = []
-    for cam_name in [u"0", u"1", u"2"]:
+    for cam_name in [u"0"]: #, u"1", u"2"]:
         cam_tf_base = station.GetStaticCameraPosesInWorld()[cam_name].GetAsIsometry3()
         # Rotate cam to get it into blender +y up, +x right, -z forward
         cam_tf_base.set_rotation(cam_tf_base.matrix()[:3, :3].dot(
@@ -395,6 +514,10 @@ if __name__ == "__main__":
     ))
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     blender_cam.get_input_port(0))
+
+    bbox_source = builder.AddSystem(BoundingBoxBundleTestSource())
+    builder.Connect(bbox_source.get_output_port(0),
+                    blender_cam.get_input_port(1))
 
     teleop = builder.AddSystem(JointSliders(station.get_controller_plant(),
                                             length=800))
