@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     port = "5556"
     context = zmq.Context()
-    socket = context.socket(zmq.PAIR)
+    socket = context.socket(zmq.REP)
     socket.bind("tcp://*:%s" % port)
 
     while True:

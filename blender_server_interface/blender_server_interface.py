@@ -10,7 +10,7 @@ class BlenderServerInterface():
     def __init__(self, zmq_url="tcp://127.0.0.1:5556"):
         self.zmq_url = zmq_url
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.PAIR)
+        self.socket = self.context.socket(zmq.REQ)
         self.socket.connect(self.zmq_url)
 
     def _construct_remote_call_json(self, func, **kwargs):
