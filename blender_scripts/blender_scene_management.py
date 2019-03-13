@@ -128,6 +128,15 @@ def register_object(name, type,
     for key, value in kwargs.items():
         setattr(obj, key, value)
 
+def apply_modifier_to_object(name, type, **kwargs):
+    if len(bpy.data.objects[name].modifiers) != 0:
+        raise NotImplementedException("In-flight modifier never cleared. This shouldn't happen.")
+
+    bpy.data.objects[name].modifiers.new(name='mod', type=type)
+    for arg_name, arg_value in kwargs.items():
+        setattr(bpy.data.objects[name].modifiers['mod'], arg_name, arg_value)
+    bpy.ops.object.modifier_apply(modifier='mod')
+
 def register_light(name,
                    type="POINT",
                    location=None,
