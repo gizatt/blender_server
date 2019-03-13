@@ -53,7 +53,7 @@ class BlenderColorCamera(LeafSystem):
                  scene_graph,
                  zmq_url="default",
                  draw_period=0.033333,
-                 camera_tf=Isometry3(),
+                 camera_tfs=[Isometry3()],
                  material_overrides=[],
                  global_transform=Isometry3()):
         """
@@ -69,7 +69,7 @@ class BlenderColorCamera(LeafSystem):
                 will be opened (the url will also be printed to the console).
                 Use e.g. zmq_url="tcp://127.0.0.1:5556" to specify a
                 specific address.
-            camera tf: Isometry3 camera tf.
+            camera tfs: List of Isometry3 camera tfs.
             material_overrides: A list of tuples of regex rules and
                 material override arguments to be passed into a
                 a register material call, not including names. (Those are
@@ -106,7 +106,7 @@ class BlenderColorCamera(LeafSystem):
         self.material_overrides = [
             (re.compile(x[0]), x[1]) for x in material_overrides]
         self.global_transform = global_transform
-        self.camera_tf = camera_tf
+        self.camera_tfs = camera_tfs
         def on_initialize(context, event):
             self.load()
 
@@ -261,21 +261,22 @@ class BlenderColorCamera(LeafSystem):
 
             self.link_subgeometry_local_tfs_by_link_name[link.name] = tfs
 
-        camera_tf_post = self.global_transform.multiply(self.camera_tf)
-        self.bsi.send_remote_call(
-            "register_camera",
-            name="cam_1",
-            location=camera_tf_post.translation().tolist(),
-            quaternion=camera_tf_post.quaternion().wxyz().tolist(),
-            angle=90)
+        for i, camera_tf in enumerate(self.camera_tfs):
+            camera_tf_post = self.global_transform.multiply(camera_tf)
+            self.bsi.send_remote_call(
+                "register_camera",
+                name="cam_%d" % i,
+                location=camera_tf_post.translation().tolist(),
+                quaternion=camera_tf_post.quaternion().wxyz().tolist(),
+                angle=90)
 
-        self.bsi.send_remote_call(
-            "configure_rendering",
-            camera_name='cam_1',
-            resolution=[1280, 720],
-            file_format="JPEG")
+            self.bsi.send_remote_call(
+                "configure_rendering",
+                camera_name='cam_%d' % i,
+                resolution=[1280, 720],
+                file_format="JPEG")
 
-        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/lab_from_phone.jpg"
+        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/shanghai_bund_4k.hdr"
         self.bsi.send_remote_call(
             "set_environment_map",
             path=env_map_path)
@@ -306,10 +307,14 @@ class BlenderColorCamera(LeafSystem):
                     location=location.tolist(),
                     rotation_mode='QUATERNION',
                     rotation_quaternion=quaternion.tolist())
-            
-        im = self.bsi.render_image(
-            "cam_1",
-            filepath="/tmp/drake_blender_vis_scene_render_%08d.jpg" % (self.current_publish_num))
+
+        n_cams = len(self.camera_tfs)
+        for i in range(len(self.camera_tfs)):
+            plt.subplot(1, n_cams, i+1)
+            im = self.bsi.render_image(
+                "cam_%d" % i,
+                filepath="/tmp/drake_blender_vis_scene_render_%02d_%08d.jpg" % (i, self.current_publish_num))
+            plt.imshow(im)
 
         if self.current_publish_num == 0:
             self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene.blend")
@@ -317,7 +322,6 @@ class BlenderColorCamera(LeafSystem):
         self.current_publish_num += 1
         #self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene_%d.blend" % (time.time()*1000*1000))
 
-        plt.imshow(im)
         plt.pause(0.01)
 
 
@@ -352,16 +356,29 @@ if __name__ == "__main__":
     #builder.Connect(station.GetOutputPort("pose_bundle"),
     #                meshcat.get_input_port(0))
 
-    cam_quat_base = RollPitchYaw(
-        81.8*np.pi/180.,
-        -5.*np.pi/180,
-        (129.+90)*np.pi/180.).ToQuaternion().wxyz()
-    offset_quat_base = RollPitchYaw(0., 0., -np.pi/2).ToQuaternion().wxyz()
+
+    #cam_quat_base = RollPitchYaw(
+    #    81.8*np.pi/180.,
+    #    -5.*np.pi/180,
+    #    (129.+90)*np.pi/180.).ToQuaternion().wxyz()
+    #cam_trans_base = [-0.196, 0.816, 0.435]
+    #cam_tf_base = Isometry3(translation=cam_trans_base,
+    #                        quaternion=cam_quat_base)
+    #cam_tfs = [cam_tf_base]
+
+    cam_tfs = []
+    for cam_name in [u"0", u"1", u"2"]:
+        cam_tf_base = station.GetStaticCameraPosesInWorld()[cam_name].GetAsIsometry3()
+        # Rotate cam to get it into blender +y up, +x right, -z forward
+        cam_tf_base.set_rotation(cam_tf_base.matrix()[:3, :3].dot(
+            RollPitchYaw([-np.pi/2, 0., np.pi/2]).ToRotationMatrix().matrix()))
+        cam_tfs.append(cam_tf_base)
+
+    offset_quat_base = RollPitchYaw(0., 0., np.pi/2).ToQuaternion().wxyz()
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         draw_period=0.0333,
-        camera_tf=Isometry3(translation=[-0.196, 0.816, 0.435],
-                            quaternion=Quaternion(cam_quat_base)),
+        camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
                 {"material_type": "CC0_texture",
