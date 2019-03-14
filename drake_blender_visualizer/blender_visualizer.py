@@ -112,7 +112,8 @@ class BlenderColorCamera(LeafSystem):
                  draw_period=0.033333,
                  camera_tfs=[Isometry3()],
                  material_overrides=[],
-                 global_transform=Isometry3()):
+                 global_transform=Isometry3(),
+		 out_prefix=None):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -138,6 +139,10 @@ class BlenderColorCamera(LeafSystem):
         """
         LeafSystem.__init__(self)
 
+	if out_prefix is not None:
+            self.out_prefix = out_prefix
+        else:
+            self.out_prefix = "/tmp/drake_blender_vis_"
         self.current_publish_num = 0
         self.set_name('blender_color_camera')
         self._DeclarePeriodicPublish(draw_period, 0.0)
@@ -346,7 +351,7 @@ class BlenderColorCamera(LeafSystem):
                 resolution=[1280, 720],
                 file_format="JPEG")
 
-        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/shanghai_bund_4k.hdr"
+        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
         self.bsi.send_remote_call(
             "set_environment_map",
             path=env_map_path)
@@ -430,16 +435,16 @@ class BlenderColorCamera(LeafSystem):
         n_cams = len(self.camera_tfs)
         for i in range(len(self.camera_tfs)):
             plt.subplot(1, n_cams, i+1)
+            out_filepath = self.out_prefix + "%02d_%08d.jpg" % (i, self.current_publish_num)
             im = self.bsi.render_image(
-                "cam_%d" % i,
-                filepath="/tmp/drake_blender_vis_scene_render_%02d_%08d.jpg" % (i, self.current_publish_num))
+                "cam_%d" % i, filepath=out_filepath)
             plt.imshow(im)
 
         if self.current_publish_num == 0:
-            self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene.blend")
+	    scene_filepath = self.out_prefix + "_scene.blend"
+            self.bsi.send_remote_call("save_current_scene", path=scene_filepath)
             self.published_scene = True
         self.current_publish_num += 1
-        #self.bsi.send_remote_call("save_current_scene", path="/tmp/drake_blender_vis_scene_%d.blend" % (time.time()*1000*1000))
 
         plt.pause(0.01)
 
