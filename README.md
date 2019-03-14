@@ -2,6 +2,9 @@ Remote-Operated Blender
 -----------------------
 ![Demo video](drake_blender_visualizer/video.gif "Demo video")
 
+<a href="https://www.youtube.com/watch?v=oXHxblWw6YA" target="_blank"><img src="drake_blender_visualizer/ycb_subset_renders.jpg" 
+alt="Preview of YCB subset example" border="10" /></a>
+
 Provides:
 - Some convenient abstractions for setting up simple scenes
 of textured meshes:
