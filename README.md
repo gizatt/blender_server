@@ -76,6 +76,9 @@ While True:
 ## TODOs / Ideas for neat features
 
 ### Immediate
+- Make Docker system for launching the Blender server.
+- Add option to the Blender server interface to start the Blender
+server in a subprocess.
 - Light management isn't exposed.
 - Camera FOV, focal length, other parameters probably not exposed.
 - Textures are reasonable reusable between objects, I think, but objects
