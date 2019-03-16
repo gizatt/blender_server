@@ -106,12 +106,12 @@ class BoundingBoxBundleTestSource(LeafSystem):
 
 
 class BoundingBoxBundleYamlSource(LeafSystem):
-    def __init__(self, log_file):
+    def __init__(self, log_file, publish_period=0.033333):
         LeafSystem.__init__(self)
 
         self.iter = 0
         self.set_name('ycb yaml log bbox publisher')
-        self.publish_period = 0.033333
+        self.publish_period = publish_period
         self._DeclarePeriodicPublish(self.publish_period, 0.0)
 
         self.bbox_bundle_output_port = \
@@ -153,14 +153,15 @@ class BoundingBoxBundleYamlSource(LeafSystem):
 
     def _DoCalcAbstractOutput(self, context, y_data):
         t = context.get_time()
+        print("Forming a bbox bundle")
         if t > self.bbox_bundle_times[-1]:
             now_ind = len(self.bbox_bundle_times)-1
         else:
             now_ind = np.argmax(self.bbox_bundle_times >= context.get_time())
 
         elapsed = t - self.bbox_bundle_times[now_ind]
-        decay_rate = 0.9
-        timeout_time = np.log(0.001) / np.log(decay_rate) * self.publish_period
+        decay_rate = 0.95
+        timeout_time = np.log(0.00001) / np.log(decay_rate) * self.publish_period
 
         if elapsed > timeout_time:
             y_data.set_value(BoundingBoxBundle(0))
@@ -577,9 +578,9 @@ def CreateYcbObjectClutter():
          X_WMustard))
 
     # The gelatin box pose.
-    X_WGelatin = _xyz_rpy([0.35, -0.32, 0.1], [-1.57, 0, 2.5])
-    ycb_object_pairs.append(
-        ("drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf", X_WGelatin))
+    #X_WGelatin = _xyz_rpy([0.35, -0.32, 0.1], [-1.57, 0, 2.5])
+    #ycb_object_pairs.append(
+    #    ("drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf", X_WGelatin))
 
     # The potted meat can pose.
     X_WMeat = _xyz_rpy([0.35, -0.32, 0.03], [-1.57, 0, 2.5])
@@ -613,7 +614,7 @@ if __name__ == "__main__":
     builder = DiagramBuilder()
 
     # Create the ManipulationStation.
-    station = builder.AddSystem(ManipulationStation(time_step=0.002))
+    station = builder.AddSystem(ManipulationStation())
     station.SetupDefaultStation()
     ycb_objects = CreateYcbObjectClutter()
     for model_file, X_WObject in ycb_objects:
@@ -648,8 +649,8 @@ if __name__ == "__main__":
     os.system("rm -r /tmp/manipulation_station_ycb && mkdir -p /tmp/manipulation_station_ycb")
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
-        show_figure=(not args.test),
-        draw_period=0.05,
+        show_figure=False,
+        draw_period=0.1,  # cinematic 24fps
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
@@ -674,16 +675,16 @@ if __name__ == "__main__":
 
     if args.log_bbox:
         bbox_source = builder.AddSystem(BoundingBoxBundleYamlSource(
-            args.log_bbox))
+            args.log_bbox, publish_period=blender_cam.draw_period))
         builder.Connect(bbox_source.get_output_port(0),
                         blender_cam.get_input_port(1))
 
     if args.log:
-        def buildTrajectorySource(ts_raw, knots_raw):
-            good_steps = np.diff(np.hstack([ts_raw, np.array(ts_raw[-1])])) >= 0.001
-            ts = ts_raw[good_steps]
-            knots = knots_raw[:, good_steps]
-            ppt = PiecewisePolynomial.ZeroOrderHold(
+        def buildTrajectorySource(ts, knots):
+            #good_steps = np.diff(np.hstack([ts_raw, np.array(ts_raw[-1])])) >= 0.001
+            #ts = ts_raw[good_steps]
+            #knots = knots_raw[:, good_steps]
+            ppt = PiecewisePolynomial.FirstOrderHold(
                 ts, knots)
             return TrajectorySource(
                 trajectory=ppt, output_derivative_order=0,
