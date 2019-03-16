@@ -9,7 +9,7 @@ if __name__=="__main__":
     user_name = getpass.getuser()
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("data_dir", type=str, help="Path to root of data folder containing assets that the server will use.")
+    parser.add_argument("-d", "--data_dir", type=str, default="$(pwd)/data", help="Absolute path to root of data folder containing assets that the server will use.")
 
     parser.add_argument("-p", "--port", type=int, default=5556, help="(optional) zmq port for server")
 
