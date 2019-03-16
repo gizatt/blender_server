@@ -54,11 +54,14 @@ class BoundingBoxBundle(object):
         self.colors = [[1., 1., 1., 1.] for n in range(num_bboxes)]
 
     def set_bbox_attributes(
-            self, box_i, scale=[1., 1., 1.], pose=Isometry3(),
-            color=[1., 1., 1., 1.]):
-        self.scales[box_i] = scale
-        self.poses[box_i] = pose
-        self.colors[box_i] = color
+            self, box_i, scale=None, pose=None,
+            color=None):
+        if scale:
+            self.scales[box_i] = scale
+        if pose:
+            self.poses[box_i] = pose
+        if color:
+            self.colors[box_i] = color
 
     def get_num_bboxes(self):
         return self.num_bboxes
@@ -108,7 +111,8 @@ class BoundingBoxBundleYamlSource(LeafSystem):
 
         self.iter = 0
         self.set_name('ycb yaml log bbox publisher')
-        self._DeclarePeriodicPublish(0.03333, 0.0)
+        self.publish_period = 0.033333
+        self._DeclarePeriodicPublish(self.publish_period, 0.0)
 
         self.bbox_bundle_output_port = \
             self._DeclareAbstractOutputPort(
@@ -155,9 +159,17 @@ class BoundingBoxBundleYamlSource(LeafSystem):
             now_ind = np.argmax(self.bbox_bundle_times >= context.get_time())
 
         elapsed = t - self.bbox_bundle_times[now_ind]
-        if elapsed > 1.0:
+        decay_rate = 0.9
+        timeout_time = np.log(0.001) / np.log(decay_rate) * self.publish_period
+
+        if elapsed > timeout_time:
             y_data.set_value(BoundingBoxBundle(0))
         else:
+            this_bundle = self.bbox_bundles[now_ind]
+            for k in range(this_bundle.get_num_bboxes()):
+                this_color = this_bundle.get_bbox_color(k)
+                this_color = [x * decay_rate for x in this_color]
+                this_bundle.set_bbox_attributes(k, color=this_color)
             y_data.set_value(self.bbox_bundles[now_ind])
 
 
@@ -415,7 +427,7 @@ class BlenderColorCamera(LeafSystem):
             self.bsi.send_remote_call(
                 "configure_rendering",
                 camera_name='cam_%d' % i,
-                resolution=[1280, 720],
+                resolution=[640, 480],
                 file_format="JPEG")
 
         env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
@@ -437,11 +449,22 @@ class BlenderColorCamera(LeafSystem):
                     bbox_bundle.get_bbox_pose(k))
                 if (k + 1) > self.num_registered_bounding_boxes:
                     # Register a new one
+                    color = bbox_bundle.get_bbox_color(k)
                     self.bsi.send_remote_call(
                             "register_material",
                             name="mat_bb_%d" % k,
                             material_type="color",
                             color=bbox_bundle.get_bbox_color(k))
+                    self.bsi.send_remote_call(
+                            "update_material_parameters",
+                            type="Principled BSDF",
+                            name="mat_bb_%d" % k,
+                            **{"Specular": 0.0})
+                    self.bsi.send_remote_call(
+                            "update_material_parameters",
+                            type=None,
+                            name="mat_bb_%d" % k,
+                            **{"blend_method": "ADD"})
                     self.bsi.send_remote_call(
                         "register_object",
                         name="obj_bb_%d" % k,
@@ -511,7 +534,7 @@ class BlenderColorCamera(LeafSystem):
                 "cam_%d" % i, filepath=out_filepath)
             if self.show_figure:
                 plt.subplot(1, n_cams, i+1)
-                plt.imshow(im)
+                plt.imshow(np.transpose(im, [1, 0, 2]))
 
         if self.current_publish_num == 0:
             scene_filepath = self.out_prefix + "_scene.blend"
@@ -614,25 +637,28 @@ if __name__ == "__main__":
     #cam_tfs = [cam_tf_base]
 
     cam_tfs = []
-    for cam_name in [u"0"]: #, u"1", u"2"]:
+    for cam_name in [u"0", u"1", u"2"]:
         cam_tf_base = station.GetStaticCameraPosesInWorld()[cam_name].GetAsIsometry3()
         # Rotate cam to get it into blender +y up, +x right, -z forward
         cam_tf_base.set_rotation(cam_tf_base.matrix()[:3, :3].dot(
             RollPitchYaw([-np.pi/2, 0., np.pi/2]).ToRotationMatrix().matrix()))
         cam_tfs.append(cam_tf_base)
 
-    offset_quat_base = RollPitchYaw(0., 0., np.pi/2).ToQuaternion().wxyz()
+    offset_quat_base = RollPitchYaw(0., 0., np.pi/4).ToQuaternion().wxyz()
     os.system("rm -r /tmp/manipulation_station_ycb && mkdir -p /tmp/manipulation_station_ycb")
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=(not args.test),
-        draw_period=0.1,
+        draw_period=0.05,
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
                 {"material_type": "CC0_texture",
                  "path": "data/test_pbr_mats/Metal09/Metal09"}),
             (".*cupboard_body.*",
+                {"material_type": "CC0_texture",
+                 "path": "data/test_pbr_mats/Wood15/Wood15"}),
+            (".*top_and_bottom.*",
                 {"material_type": "CC0_texture",
                  "path": "data/test_pbr_mats/Wood15/Wood15"}),
             (".*cupboard.*door.*",
