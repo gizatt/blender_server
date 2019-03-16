@@ -9,6 +9,7 @@ import pickle
 import re
 import time
 import warnings
+import yaml
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -80,8 +81,6 @@ class BoundingBoxBundleTestSource(LeafSystem):
         self.set_name('dummy bbox publisher')
         self._DeclarePeriodicPublish(0.03333, 0.0)
 
-        # Optional pose bundle of bounding boxes.
-
         self.bbox_bundle_output_port = \
             self._DeclareAbstractOutputPort(
                 self._DoAllocBboxBundle,
@@ -101,6 +100,65 @@ class BoundingBoxBundleTestSource(LeafSystem):
             pose=RigidTransform(p=[0.4, 0.1, 0.1]).GetAsIsometry3(),
             color=[0., 1., 1., 1.])
         y_data.set_value(bbox_bundle)
+
+
+class BoundingBoxBundleYamlSource(LeafSystem):
+    def __init__(self, log_file):
+        LeafSystem.__init__(self)
+
+        self.iter = 0
+        self.set_name('ycb yaml log bbox publisher')
+        self._DeclarePeriodicPublish(0.03333, 0.0)
+
+        self.bbox_bundle_output_port = \
+            self._DeclareAbstractOutputPort(
+                self._DoAllocBboxBundle,
+                self._DoCalcAbstractOutput)
+
+        # Load in log and prepare ordered list of the bundles
+        # across time
+        with open(log_file, "r") as f:
+            log_yaml = yaml.load(f)
+
+        self.colors_by_obj = log_yaml["colors"]
+        self.sizes_by_obj = log_yaml["sizes"]
+        self.bbox_bundle_times = []
+        self.bbox_bundles = []
+        for detection_event in log_yaml["detection_events"]:
+            t = detection_event["t"]
+            self.bbox_bundle_times.append(t)
+            detected_objs = detection_event["detections"].keys()
+            bbox_bundle = BoundingBoxBundle(len(detected_objs))
+            for i, obj_name in enumerate(detected_objs):
+                assert(obj_name in self.colors_by_obj.keys() and
+                       obj_name in self.sizes_by_obj.keys())
+                color_float = [float(x)/255. for x
+                               in self.colors_by_obj[obj_name]]
+                scale = [eval(x) for x in self.sizes_by_obj[obj_name]]
+                bbox_bundle.set_bbox_attributes(
+                    i, scale=scale,
+                    color=color_float,
+                    pose=RigidTransform(np.array(
+                        detection_event["detections"][obj_name]))
+                    .GetAsIsometry3())
+            self.bbox_bundles.append((bbox_bundle))
+        self.bbox_bundle_times = np.array(self.bbox_bundle_times)
+
+    def _DoAllocBboxBundle(self):
+        return AbstractValue.Make(BoundingBoxBundle)
+
+    def _DoCalcAbstractOutput(self, context, y_data):
+        t = context.get_time()
+        if t > self.bbox_bundle_times[-1]:
+            now_ind = len(self.bbox_bundle_times)-1
+        else:
+            now_ind = np.argmax(self.bbox_bundle_times >= context.get_time())
+
+        elapsed = t - self.bbox_bundle_times[now_ind]
+        if elapsed > 1.0:
+            y_data.set_value(BoundingBoxBundle(0))
+        else:
+            y_data.set_value(self.bbox_bundles[now_ind])
 
 
 class BlenderColorCamera(LeafSystem):
@@ -475,7 +533,7 @@ def _xyz_rpy(p, rpy):
 def CreateYcbObjectClutter():
     ycb_object_pairs = []
 
-    X_WCracker = _xyz_rpy([0.35, 0.15, 0.09], [0, -1.57, 4])
+    X_WCracker = _xyz_rpy([0.35, 0.14, 0.09], [0, -1.57, 4])
     ycb_object_pairs.append(
         ("drake/manipulation/models/ycb/sdf/003_cracker_box.sdf", X_WCracker))
 
@@ -490,13 +548,13 @@ def CreateYcbObjectClutter():
         ("drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf", X_WSoup))
 
     # The mustard bottle pose.
-    X_WMustard = _xyz_rpy([0.45, -0.16, 0.09], [-1.57, 0, 3.3])
+    X_WMustard = _xyz_rpy([0.44, -0.16, 0.09], [-1.57, 0, 3.3])
     ycb_object_pairs.append(
         ("drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf",
          X_WMustard))
 
     # The gelatin box pose.
-    X_WGelatin = _xyz_rpy([0.35, -0.32, 0.1], [-1.57, 0, 3.7])
+    X_WGelatin = _xyz_rpy([0.35, -0.32, 0.1], [-1.57, 0, 2.5])
     ycb_object_pairs.append(
         ("drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf", X_WGelatin))
 
@@ -518,11 +576,14 @@ if __name__ == "__main__":
         help="Desired duration of the simulation in seconds.")
     parser.add_argument(
         "--test", action='store_true',
-        help="Disable opening the gui window for testing.")
+        help="Disable open_ing the gui window for testing.")
     parser.add_argument(
         "--log", type=str, default=None,
         help="Pickle file of logged run to play back. If not supplied, "
              " a teleop panel will appear instead.")
+    parser.add_argument(
+        "--log_bbox", type=str, default=None,
+        help="Optional yaml file of logged bbox detections to play back.")
     MeshcatVisualizer.add_argparse_argument(parser)
     args = parser.parse_args()
 
@@ -565,7 +626,7 @@ if __name__ == "__main__":
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=(not args.test),
-        draw_period=0.5,
+        draw_period=0.1,
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
@@ -585,9 +646,11 @@ if __name__ == "__main__":
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     blender_cam.get_input_port(0))
 
-    bbox_source = builder.AddSystem(BoundingBoxBundleTestSource())
-    builder.Connect(bbox_source.get_output_port(0),
-                    blender_cam.get_input_port(1))
+    if args.log_bbox:
+        bbox_source = builder.AddSystem(BoundingBoxBundleYamlSource(
+            args.log_bbox))
+        builder.Connect(bbox_source.get_output_port(0),
+                        blender_cam.get_input_port(1))
 
     if args.log:
         def buildTrajectorySource(ts_raw, knots_raw):
