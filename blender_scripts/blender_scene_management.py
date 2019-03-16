@@ -124,7 +124,7 @@ def register_object(name, type,
             assert(isinstance(scale, float))
             obj.scale = [scale]*3
     if material is not None:
-        obj.active_material = bpy.data.materials[material].copy()
+        obj.active_material = bpy.data.materials[material]
     for key, value in kwargs.items():
         setattr(obj, key, value)
 
@@ -166,7 +166,7 @@ def update_object_parameters(name,
             print("ValueError details: ", e)
 
 def update_material_parameters(name,
-                               type,
+                               type=None,
                                **kwargs):
     # Much hackier than objects, as material live in a node tree...
     try:
@@ -175,12 +175,10 @@ def update_material_parameters(name,
         raise e
 
     for arg_name, arg_value in kwargs.items():
-        try:
-            obj.node_tree.nodes[type].inputs[arg_name].default_value  = arg_value
-        except ValueError as e:
-            print("ValueError setting material [%s]'s attr [%s] to [%s]." % 
-                  (name, arg_name, str(arg_value)))
-            print("ValueError details: ", e)
+        if type:
+            obj.node_tree.nodes[type].inputs[arg_name].default_value = arg_value
+        else:
+            setattr(obj, arg_name, arg_value)
 
 def set_environment_map(path):
     # Overwrite the world background node input.
