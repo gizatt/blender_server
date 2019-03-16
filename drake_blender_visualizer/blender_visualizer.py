@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import math
 import os
+import pickle
 import re
 import time
 import warnings
@@ -32,7 +33,9 @@ from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
-from pydrake.systems.primitives import FirstOrderLowPassFilter
+from pydrake.systems.primitives import (
+    FirstOrderLowPassFilter, TrajectorySource)
+from pydrake.trajectories import PiecewisePolynomial
 from pydrake.util.eigen_geometry import Isometry3
 
 
@@ -113,7 +116,8 @@ class BlenderColorCamera(LeafSystem):
                  camera_tfs=[Isometry3()],
                  material_overrides=[],
                  global_transform=Isometry3(),
-		 out_prefix=None):
+                 out_prefix=None,
+                 show_figure=False):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -139,7 +143,7 @@ class BlenderColorCamera(LeafSystem):
         """
         LeafSystem.__init__(self)
 
-	if out_prefix is not None:
+        if out_prefix is not None:
             self.out_prefix = out_prefix
         else:
             self.out_prefix = "/tmp/drake_blender_vis_"
@@ -149,19 +153,20 @@ class BlenderColorCamera(LeafSystem):
         self.draw_period = draw_period
 
         # Pose bundle (from SceneGraph) input port.
-        self._DeclareAbstractInputPort("lcm_visualization",
-                                       AbstractValue.Make(PoseBundle(0)))
+        self._DeclareAbstractInputPort(
+            "lcm_visualization",
+            AbstractValue.Make(PoseBundle(0)))
 
         # Optional pose bundle of bounding boxes.
-        self._DeclareAbstractInputPort("bounding_box_bundle",
-                                       AbstractValue.Make(BoundingBoxBundle(0)))
+        self._DeclareAbstractInputPort(
+            "bounding_box_bundle",
+            AbstractValue.Make(BoundingBoxBundle(0)))
 
         if zmq_url == "default":
             zmq_url = "tcp://127.0.0.1:5556"
         elif zmq_url == "new":
             raise NotImplementedError("TODO")
 
-        # Connect to the server via a 
         if zmq_url is not None:
             print("Connecting to blender server at zmq_url=" + zmq_url + "...")
         self.bsi = BlenderServerInterface(zmq_url=zmq_url)
@@ -173,6 +178,7 @@ class BlenderColorCamera(LeafSystem):
             (re.compile(x[0]), x[1]) for x in material_overrides]
         self.global_transform = global_transform
         self.camera_tfs = camera_tfs
+
         def on_initialize(context, event):
             self.load()
 
@@ -181,7 +187,9 @@ class BlenderColorCamera(LeafSystem):
                 trigger_type=TriggerType.kInitialization,
                 callback=on_initialize))
 
-        plt.figure()
+        self.show_figure = show_figure
+        if self.show_figure:
+            plt.figure()
 
     def _parse_name(self, name):
         # Parse name, split on the first (required) occurrence of `::` to get
@@ -331,7 +339,8 @@ class BlenderColorCamera(LeafSystem):
                         material_type="color",
                         color=geom.color[:4])
 
-                # Finally actually load the geometry now that the material is registered.
+                # Finally actually load the geometry now that the material
+                # is registered.
                 do_load_geom()
 
             self.link_subgeometry_local_tfs_by_link_name[link.name] = tfs
@@ -366,7 +375,8 @@ class BlenderColorCamera(LeafSystem):
         if bbox_bundle:
             bbox_bundle = bbox_bundle.get_value()
             for k in range(bbox_bundle.get_num_bboxes()):
-                pose = self.global_transform.multiply(bbox_bundle.get_bbox_pose(k))
+                pose = self.global_transform.multiply(
+                    bbox_bundle.get_bbox_pose(k))
                 if (k + 1) > self.num_registered_bounding_boxes:
                     # Register a new one
                     self.bsi.send_remote_call(
@@ -402,7 +412,8 @@ class BlenderColorCamera(LeafSystem):
                             scale=[x/2 for x in bbox_bundle.get_bbox_scale(k)],
                             location=pose.translation().tolist(),
                             rotation_mode='QUATERNION',
-                            rotation_quaternion=pose.quaternion().wxyz().tolist(),
+                            rotation_quaternion=pose.quaternion().
+                            wxyz().tolist(),
                             hide_render=False)
                     self.num_visible_bounding_boxes = k + 1
             for k in range(bbox_bundle.get_num_bboxes(),
@@ -421,10 +432,12 @@ class BlenderColorCamera(LeafSystem):
                 offset = Isometry3(
                     self.global_transform.matrix().dot(
                         pose_matrix.matrix().dot(
-                            self.link_subgeometry_local_tfs_by_link_name[link_name][j])))
+                            self.link_subgeometry_local_tfs_by_link_name[
+                                link_name][j])))
                 location = offset.translation()
                 quaternion = offset.quaternion().wxyz()
-                geom_name = self._format_geom_name(source_name, frame_name, model_id, j)
+                geom_name = self._format_geom_name(
+                    source_name, frame_name, model_id, j)
                 self.bsi.send_remote_call(
                     "update_object_parameters",
                     name="obj_" + geom_name,
@@ -434,51 +447,100 @@ class BlenderColorCamera(LeafSystem):
 
         n_cams = len(self.camera_tfs)
         for i in range(len(self.camera_tfs)):
-            plt.subplot(1, n_cams, i+1)
-            out_filepath = self.out_prefix + "%02d_%08d.jpg" % (i, self.current_publish_num)
+            out_filepath = self.out_prefix + "%02d_%08d.jpg" % (
+                i, self.current_publish_num)
             im = self.bsi.render_image(
                 "cam_%d" % i, filepath=out_filepath)
-            plt.imshow(im)
+            if self.show_figure:
+                plt.subplot(1, n_cams, i+1)
+                plt.imshow(im)
 
         if self.current_publish_num == 0:
-	    scene_filepath = self.out_prefix + "_scene.blend"
-            self.bsi.send_remote_call("save_current_scene", path=scene_filepath)
+            scene_filepath = self.out_prefix + "_scene.blend"
+            self.bsi.send_remote_call(
+                "save_current_scene", path=scene_filepath)
             self.published_scene = True
         self.current_publish_num += 1
 
-        plt.pause(0.01)
+        if self.show_figure:
+            plt.pause(0.01)
+        print("Rendered a frame at %f seconds sim-time." % (
+            context.get_time()))
+
+
+def _xyz_rpy(p, rpy):
+    return RigidTransform(rpy=RollPitchYaw(rpy), p=p)
+
+
+def CreateYcbObjectClutter():
+    ycb_object_pairs = []
+
+    X_WCracker = _xyz_rpy([0.35, 0.15, 0.09], [0, -1.57, 4])
+    ycb_object_pairs.append(
+        ("drake/manipulation/models/ycb/sdf/003_cracker_box.sdf", X_WCracker))
+
+    # The sugar box pose.
+    X_WSugar = _xyz_rpy([0.28, -0.17, 0.03], [0, 1.57, 3.14])
+    ycb_object_pairs.append(
+        ("drake/manipulation/models/ycb/sdf/004_sugar_box.sdf", X_WSugar))
+
+    # The tomato soup can pose.
+    X_WSoup = _xyz_rpy([0.40, -0.07, 0.03], [-1.57, 0, 3.14])
+    ycb_object_pairs.append(
+        ("drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf", X_WSoup))
+
+    # The mustard bottle pose.
+    X_WMustard = _xyz_rpy([0.45, -0.16, 0.09], [-1.57, 0, 3.3])
+    ycb_object_pairs.append(
+        ("drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf",
+         X_WMustard))
+
+    # The gelatin box pose.
+    X_WGelatin = _xyz_rpy([0.35, -0.32, 0.1], [-1.57, 0, 3.7])
+    ycb_object_pairs.append(
+        ("drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf", X_WGelatin))
+
+    # The potted meat can pose.
+    X_WMeat = _xyz_rpy([0.35, -0.32, 0.03], [-1.57, 0, 2.5])
+    ycb_object_pairs.append(
+        ("drake/manipulation/models/ycb/sdf/010_potted_meat_can.sdf", X_WMeat))
+
+    return ycb_object_pairs
 
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="Demo of the Blender visualizer functionality "
+                    "on the Drake ManipulationStation example.")
+    parser.add_argument(
+        "--duration", type=float, default=np.inf,
+        help="Desired duration of the simulation in seconds.")
+    parser.add_argument(
+        "--test", action='store_true',
+        help="Disable opening the gui window for testing.")
+    parser.add_argument(
+        "--log", type=str, default=None,
+        help="Pickle file of logged run to play back. If not supplied, "
+             " a teleop panel will appear instead.")
+    MeshcatVisualizer.add_argparse_argument(parser)
+    args = parser.parse_args()
+
     builder = DiagramBuilder()
 
-    
-    station = builder.AddSystem(ManipulationStation())
+    # Create the ManipulationStation.
+    station = builder.AddSystem(ManipulationStation(time_step=0.002))
     station.SetupDefaultStation()
-
-    new_obj_list = [
-      # ['drake/manipulation/models/ycb/sdf/003_cracker_box.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([0.72, -12.3, 0.7]), p=[0.55, 0.2, 0.2])],
-      # ['drake/manipulation/models/ycb/sdf/004_sugar_box.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.1, 0.5, -0.6]), p=[0.45, 0.10, 0.15])],
-      # ['drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.2, 0., 0.3]), p=[0.4, -0.2, 0.15])],
-      # ['drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.3, -0.1, 0.1])],
-      # ['drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.35, 0.05, 0.1])]
-    ]
-
-    for pair in new_obj_list:
-        station.AddManipulandFromFile(
-            model_file=pair[0],
-            X_WObject=pair[1])
+    ycb_objects = CreateYcbObjectClutter()
+    for model_file, X_WObject in ycb_objects:
+        station.AddManipulandFromFile(model_file, X_WObject)
     station.Finalize()
 
-    #meshcat = builder.AddSystem(MeshcatVisualizer(
-    #        station.get_scene_graph()))
-    #builder.Connect(station.GetOutputPort("pose_bundle"),
-    #                meshcat.get_input_port(0))
+    if args.meshcat:
+            meshcat = builder.AddSystem(MeshcatVisualizer(
+                station.get_scene_graph(), zmq_url=args.meshcat))
+            builder.Connect(station.GetOutputPort("pose_bundle"),
+                            meshcat.get_input_port(0))
 
 
     #cam_quat_base = RollPitchYaw(
@@ -499,9 +561,11 @@ if __name__ == "__main__":
         cam_tfs.append(cam_tf_base)
 
     offset_quat_base = RollPitchYaw(0., 0., np.pi/2).ToQuaternion().wxyz()
+    os.system("rm -r /tmp/manipulation_station_ycb && mkdir -p /tmp/manipulation_station_ycb")
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
-        draw_period=0.0333,
+        show_figure=(not args.test),
+        draw_period=0.5,
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
@@ -515,7 +579,8 @@ if __name__ == "__main__":
                  "path": "data/test_pbr_mats/Wood08/Wood08"})
         ],
         global_transform=Isometry3(translation=[0, 0, 0],
-                                   quaternion=Quaternion(offset_quat_base))
+                                   quaternion=Quaternion(offset_quat_base)),
+        out_prefix="/tmp/manipulation_station_ycb/"
     ))
     builder.Connect(station.GetOutputPort("pose_bundle"),
                     blender_cam.get_input_port(0))
@@ -524,20 +589,45 @@ if __name__ == "__main__":
     builder.Connect(bbox_source.get_output_port(0),
                     blender_cam.get_input_port(1))
 
-    teleop = builder.AddSystem(JointSliders(station.get_controller_plant(),
-                                            length=800))
+    if args.log:
+        def buildTrajectorySource(ts_raw, knots_raw):
+            good_steps = np.diff(np.hstack([ts_raw, np.array(ts_raw[-1])])) >= 0.001
+            ts = ts_raw[good_steps]
+            knots = knots_raw[:, good_steps]
+            ppt = PiecewisePolynomial.ZeroOrderHold(
+                ts, knots)
+            return TrajectorySource(
+                trajectory=ppt, output_derivative_order=0,
+                zero_derivatives_beyond_limits=True)
 
-    filter = builder.AddSystem(FirstOrderLowPassFilter(time_constant=2.0,
-                                                       size=7))
-    builder.Connect(teleop.get_output_port(0), filter.get_input_port(0))
-    builder.Connect(filter.get_output_port(0),
-                    station.GetInputPort("iiwa_position"))
+        with open(args.log, "rb") as f:
+            input_dict = pickle.load(f)
+        iiwa_position_trajsource = builder.AddSystem(
+            buildTrajectorySource(input_dict["iiwa_position_t"],
+                                  input_dict["iiwa_position_data"]))
+        wsg_position_trajsource = builder.AddSystem(
+            buildTrajectorySource(input_dict["wsg_position_t"],
+                                  input_dict["wsg_position_data"]))
+        builder.Connect(iiwa_position_trajsource.get_output_port(0),
+                        station.GetInputPort("iiwa_position"))
+        builder.Connect(wsg_position_trajsource.get_output_port(0),
+                        station.GetInputPort("wsg_position"))
+        duration = input_dict["iiwa_position_t"][-1]
+    else:
+        teleop = builder.AddSystem(JointSliders(station.get_controller_plant(),
+                                                length=800))
+        filter = builder.AddSystem(FirstOrderLowPassFilter(time_constant=2.0,
+                                                           size=7))
+        builder.Connect(teleop.get_output_port(0), filter.get_input_port(0))
+        builder.Connect(filter.get_output_port(0),
+                        station.GetInputPort("iiwa_position"))
 
-    wsg_buttons = builder.AddSystem(SchunkWsgButtons(teleop.window))
-    builder.Connect(wsg_buttons.GetOutputPort("position"), station.GetInputPort(
-        "wsg_position"))
-    builder.Connect(wsg_buttons.GetOutputPort("force_limit"),
-                    station.GetInputPort("wsg_force_limit"))
+        wsg_buttons = builder.AddSystem(SchunkWsgButtons(teleop.window))
+        builder.Connect(wsg_buttons.GetOutputPort("position"), station.GetInputPort(
+            "wsg_position"))
+        builder.Connect(wsg_buttons.GetOutputPort("force_limit"),
+                        station.GetInputPort("wsg_force_limit"))
+        duration = args.duration
 
     diagram = builder.Build()
     simulator = Simulator(diagram)
@@ -547,17 +637,22 @@ if __name__ == "__main__":
 
     station_context.FixInputPort(station.GetInputPort(
         "iiwa_feedforward_torque").get_index(), np.zeros(7))
-
-    # Eval the output port once to read the initial positions of the IIWA.
-    q0 = station.GetOutputPort("iiwa_position_measured").Eval(
-        station_context)
-    q0[:] = [0., 0.5, 0., -1.75, 0., 1., 0.]
-    teleop.set_position(q0)
-    filter.set_initial_output_value(diagram.GetMutableSubsystemContext(
-        filter, simulator.get_mutable_context()), q0)
+    if args.log:
+        station_context.FixInputPort(station.GetInputPort(
+            "wsg_force_limit").get_index(), np.zeros(1)+40)
+        station.SetIiwaPosition(station_context, input_dict["q0"])
+    else:
+        # Eval the output port once to read the initial positions of the IIWA.
+        q0 = station.GetOutputPort("iiwa_position_measured").Eval(
+            station_context)
+        q0[:] = [0., 0.5, 0., -1.75, 0., 1., 0.]
+        teleop.set_position(q0)
+        filter.set_initial_output_value(diagram.GetMutableSubsystemContext(
+            filter, simulator.get_mutable_context()), q0)
 
     # This is important to avoid duplicate publishes to the hardware interface:
     simulator.set_publish_every_time_step(False)
 
     simulator.set_target_realtime_rate(1.0)
-    simulator.StepTo(100.0)
+    print("Starting simulation for %f seconds." % duration)
+    simulator.StepTo(duration)
