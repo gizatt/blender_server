@@ -8,7 +8,7 @@ for k in range(3):
         rotation_str = '-filter:v transpose=1 -metadata:s:v rotate=""'
     elif k == 2:
         rotation_str = '-filter:v transpose=1 -metadata:s:v rotate=""'
-    os.system("avconv -y -r 20 -i /tmp/manipulation_station_ycb/%02d_%%08d.jpg /tmp/manipulation_station_ycb/manipulation_station_ycb_render_realtime_%02d.mp4" % (k, k))
+    os.system("avconv -y -r 10 -i /tmp/manipulation_station_ycb/%02d_%%08d.jpg /tmp/manipulation_station_ycb/manipulation_station_ycb_render_realtime_%02d.mp4" % (k, k))
     os.system("avconv -y -i /tmp/manipulation_station_ycb/manipulation_station_ycb_render_realtime_%02d.mp4 %s manipulation_station_ycb_render_realtime_%02d.mp4" % (k, rotation_str, k))
 
 

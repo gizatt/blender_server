@@ -3,6 +3,7 @@ Visualizes SceneGraph state using Blender Server.
 """
 from __future__ import print_function
 import argparse
+from copy import deepcopy
 import math
 import os
 import pickle
@@ -46,6 +47,13 @@ from blender_server.blender_server_interface.blender_server_interface import Ble
 class BoundingBoxBundle(object):
     def __init__(self, num_bboxes=0):
         self.reset(num_bboxes)
+
+    def MakeCopy(self):
+        new = BoundingBoxBundle(self.num_bboxes)
+        new.scales = deepcopy(self.scales)
+        new.colors = deepcopy(self.colors)
+        new.poses = [Isometry3(tf) for tf in self.poses]
+        return new
 
     def reset(self, num_bboxes):
         self.num_bboxes = num_bboxes
@@ -127,10 +135,12 @@ class BoundingBoxBundleYamlSource(LeafSystem):
         self.colors_by_obj = log_yaml["colors"]
         self.sizes_by_obj = log_yaml["sizes"]
         self.bbox_bundle_times = []
+        self.bbox_bundle_durations = []
         self.bbox_bundles = []
         for detection_event in log_yaml["detection_events"]:
             t = detection_event["t"]
             self.bbox_bundle_times.append(t)
+            self.bbox_bundle_durations.append(detection_event["duration"])
             detected_objs = detection_event["detections"].keys()
             bbox_bundle = BoundingBoxBundle(len(detected_objs))
             for i, obj_name in enumerate(detected_objs):
@@ -147,31 +157,48 @@ class BoundingBoxBundleYamlSource(LeafSystem):
                     .GetAsIsometry3())
             self.bbox_bundles.append((bbox_bundle))
         self.bbox_bundle_times = np.array(self.bbox_bundle_times)
+        self.bbox_bundle_durations = np.array(self.bbox_bundle_durations)
 
     def _DoAllocBboxBundle(self):
         return AbstractValue.Make(BoundingBoxBundle)
 
     def _DoCalcAbstractOutput(self, context, y_data):
         t = context.get_time()
-        print("Forming a bbox bundle")
-        if t > self.bbox_bundle_times[-1]:
-            now_ind = len(self.bbox_bundle_times)-1
+
+        fade_time = 0.5
+        bundle_absolute_end_times = (
+            self.bbox_bundle_times + self.bbox_bundle_durations + fade_time)
+
+        if t > bundle_absolute_end_times[-1]:
+            now_ind = len(bundle_absolute_end_times)-1
         else:
-            now_ind = np.argmax(self.bbox_bundle_times >= context.get_time())
+            now_ind = np.argmax(bundle_absolute_end_times >= t)
 
-        elapsed = t - self.bbox_bundle_times[now_ind]
-        decay_rate = 0.95
-        timeout_time = np.log(0.00001) / np.log(decay_rate) * self.publish_period
+        start_time = self.bbox_bundle_times[now_ind]
+        end_time = start_time + self.bbox_bundle_durations[now_ind]
 
-        if elapsed > timeout_time:
+        print("Start time: %f, end_time: %f, t: %f" % (start_time, end_time, t))
+        if t < (start_time - fade_time) or t > (end_time + fade_time):
+            print("Case none")
             y_data.set_value(BoundingBoxBundle(0))
-        else:
-            this_bundle = self.bbox_bundles[now_ind]
-            for k in range(this_bundle.get_num_bboxes()):
-                this_color = this_bundle.get_bbox_color(k)
-                this_color = [x * decay_rate for x in this_color]
-                this_bundle.set_bbox_attributes(k, color=this_color)
+            return
+        elif t >= start_time and t <= end_time:
+            print("Case pure")
             y_data.set_value(self.bbox_bundles[now_ind])
+            return
+        elif t > (end_time):
+            print("Fade out")
+            fade_amt = 1. - (t - end_time) / fade_time
+        elif t < start_time:
+            print("Fade in")
+            fade_amt = 1. - (start_time - t) / fade_time
+
+        faded_bundle = self.bbox_bundles[now_ind].MakeCopy()
+        for k in range(faded_bundle.get_num_bboxes()):
+            this_color = faded_bundle.get_bbox_color(k)
+            this_color = [x * fade_amt for x in this_color]
+            faded_bundle.set_bbox_attributes(k, color=this_color)
+        y_data.set_value(faded_bundle)
 
 
 class BlenderColorCamera(LeafSystem):
@@ -638,7 +665,7 @@ if __name__ == "__main__":
     #cam_tfs = [cam_tf_base]
 
     cam_tfs = []
-    for cam_name in [u"0", u"1", u"2"]:
+    for cam_name in [u"0"]: #, u"1", u"2"]:
         cam_tf_base = station.GetStaticCameraPosesInWorld()[cam_name].GetAsIsometry3()
         # Rotate cam to get it into blender +y up, +x right, -z forward
         cam_tf_base.set_rotation(cam_tf_base.matrix()[:3, :3].dot(
@@ -650,7 +677,7 @@ if __name__ == "__main__":
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=False,
-        draw_period=0.1,  # cinematic 24fps
+        draw_period=0.1,  # cinematic 30fps
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
