@@ -177,20 +177,15 @@ class BoundingBoxBundleYamlSource(LeafSystem):
         start_time = self.bbox_bundle_times[now_ind]
         end_time = start_time + self.bbox_bundle_durations[now_ind]
 
-        print("Start time: %f, end_time: %f, t: %f" % (start_time, end_time, t))
         if t < (start_time - fade_time) or t > (end_time + fade_time):
-            print("Case none")
             y_data.set_value(BoundingBoxBundle(0))
             return
         elif t >= start_time and t <= end_time:
-            print("Case pure")
             y_data.set_value(self.bbox_bundles[now_ind])
             return
         elif t > (end_time):
-            print("Fade out")
             fade_amt = 1. - (t - end_time) / fade_time
         elif t < start_time:
-            print("Fade in")
             fade_amt = 1. - (start_time - t) / fade_time
 
         faded_bundle = self.bbox_bundles[now_ind].MakeCopy()
@@ -455,7 +450,7 @@ class BlenderColorCamera(LeafSystem):
             self.bsi.send_remote_call(
                 "configure_rendering",
                 camera_name='cam_%d' % i,
-                resolution=[640, 480],
+                resolution=[640*2, 480*2],
                 file_format="JPEG")
 
         env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
@@ -665,7 +660,7 @@ if __name__ == "__main__":
     #cam_tfs = [cam_tf_base]
 
     cam_tfs = []
-    for cam_name in [u"0"]: #, u"1", u"2"]:
+    for cam_name in [u"0", u"1", u"2"]:
         cam_tf_base = station.GetStaticCameraPosesInWorld()[cam_name].GetAsIsometry3()
         # Rotate cam to get it into blender +y up, +x right, -z forward
         cam_tf_base.set_rotation(cam_tf_base.matrix()[:3, :3].dot(
@@ -677,7 +672,7 @@ if __name__ == "__main__":
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=False,
-        draw_period=0.1,  # cinematic 30fps
+        draw_period=0.03333333,
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",

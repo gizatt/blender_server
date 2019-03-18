@@ -1,7 +1,7 @@
 import os
 
-output_height = 640
-output_width = 480*3
+output_height = 640*2
+output_width = 480*3*2
 
 n_horizontal_tiles = 3
 n_vertical_tiles = 1
