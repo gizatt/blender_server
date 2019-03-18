@@ -3,10 +3,6 @@ import numpy as np
 import os
 import sys
 
-# TODO(gizatt) Why is this required?
-# Why isn't current launch dir included in sys.path?
-print(sys.path)
-sys.path.append("/home/gizatt/tools/blender_server/")
 import blender_scripts.blender_scene_management as bsm
 
 if __name__ == '__main__':

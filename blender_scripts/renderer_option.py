@@ -107,5 +107,6 @@ def setup_and_use_eevee(option: EeveeRendererOption, camera_name='Camera'):
     bpy.context.scene.eevee.shadow_method = option.shadow_method
     bpy.context.scene.eevee.use_soft_shadows = option.use_soft_shadow
     bpy.context.scene.eevee.shadow_cube_size = option.shadow_cube_size
-    bpy.context.scene.eevee.taa_render_samples = 16
+    bpy.context.scene.eevee.taa_render_samples = 20
     bpy.context.scene.eevee.use_ssr = True
+    bpy.context.scene.eevee.ssr_max_roughness = 0.1

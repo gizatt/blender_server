@@ -1,6 +1,7 @@
 Remote-Operated Blender
 -----------------------
-![Demo video](drake_blender_visualizer/video.gif "Demo video")
+<a href="https://www.youtube.com/watch?v=zUS33rvbRsc" target="_blank"><img src="drake_blender_visualizer/ycb_manipulation_renders.gif" 
+alt="Preview of YCB manipulation example" border="10" /></a>
 
 <a href="https://www.youtube.com/watch?v=oXHxblWw6YA" target="_blank"><img src="drake_blender_visualizer/ycb_subset_renders.jpg" 
 alt="Preview of YCB subset example" border="10" /></a>
@@ -26,12 +27,36 @@ jpeg).
 
 ## Usage + Examples
 
+### Basic examples
+First, you'll probably want to get some assets. You can use the `data/get_example_assets.sh` to get the assets necessary to run the below examples.
+
 - Using the abstraction layer itself from Blender: launch `render_main_bsm.py` with Blender, using e.g. `run_example_bsh.sh`.
 - Using the Blender server: launch the Blender server with blender, using e.g. `run_blender_server.sh`. Then run `test_blender_server.py` with any Python that has `zmq`, `numpy`, and `imageio`.	
 - Using the lower-level utilities: launch `render_main_manual.py` with Blender, using e.g. `run_example_manual.sh`.
 
+### Visualizing Drake robot simulations
+
+If you want to play with the Drake robot simulation examples, you'll want both the above example assets, and also
+possible example trajectory and bounding box detections files, which you can get
+with the `drake_blender_visualizer/get_example_trajectory.sh` script. 
+
+You can launch the YCB object simulation by using `run_blender_server.sh` in one terminal, and then running
+`python demo_blender_visualizer_on_ycb_tabletop.py`. This will dump images in `/tmp/ycb_scene_%02/` folders.
+
+You can launch the ManipulationStation teleop playback example with
+`python demo_manipulation_station_with_bounding_boxes.py --log example_trajectory/teleop_log_manual_final.pickle --log_bbox example_trajectory/ycb_detections_full.yaml`.
+This will dump images in the `/tmp/manipulation_station_ycb` folder. Some convenience scripts for rendering videos are provided in this directory.
 
 ## Setup
+
+### Python
+
+Make sure that the folder containing this module is on your PYTHONPATH -- e.g. I put this module in my
+`~/tools` folder, so I do:
+
+```export PYTHONPATH=~/tools:${PYTHONPATH}```
+
+### Blender
 
 This requires Blender >= 2.8 (to use the nice Eevee renderer), and has only
 been tested on Ubuntu 16.04. It probably works on 18.04, it probably works
@@ -55,6 +80,7 @@ document how to do this in the future, but how I did it was approximately:
 2) conda install attrs && pip install zmq
 3) Copy "attr*" (not "attrs*"!) and "zmq*" and "pyzmq*" from the environment's `site-packages` folder to `blender-2.80/2.80/python/lib/python3.7/site-packages/`.
 4) Copy "libsodium*" and "libzmq*" from the environment's `lib` folder to `blender-2.80/2.80/python/lib`. This was necessary, I think, because I had other versions of those libraries in my system somewhere that were conflicting, so I needed to give Blender the right version with higher priority.
+
 
 
 ## Schematic Flow for Rendering a Simple Scene

@@ -3,11 +3,14 @@ Visualizes SceneGraph state using Blender Server.
 """
 from __future__ import print_function
 import argparse
+from copy import deepcopy
 import math
 import os
+import pickle
 import re
 import time
 import warnings
+import yaml
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,16 +35,26 @@ from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
-from pydrake.systems.primitives import FirstOrderLowPassFilter
+from pydrake.systems.primitives import (
+    FirstOrderLowPassFilter, TrajectorySource)
+from pydrake.trajectories import PiecewisePolynomial
 from pydrake.util.eigen_geometry import Isometry3
 
 
-from blender_server.blender_server_interface.blender_server_interface import BlenderServerInterface
+from blender_server.blender_server_interface.blender_server_interface import (
+    BlenderServerInterface)
 
 
 class BoundingBoxBundle(object):
     def __init__(self, num_bboxes=0):
         self.reset(num_bboxes)
+
+    def MakeCopy(self):
+        new = BoundingBoxBundle(self.num_bboxes)
+        new.scales = deepcopy(self.scales)
+        new.colors = deepcopy(self.colors)
+        new.poses = [Isometry3(tf) for tf in self.poses]
+        return new
 
     def reset(self, num_bboxes):
         self.num_bboxes = num_bboxes
@@ -50,11 +63,14 @@ class BoundingBoxBundle(object):
         self.colors = [[1., 1., 1., 1.] for n in range(num_bboxes)]
 
     def set_bbox_attributes(
-            self, box_i, scale=[1., 1., 1.], pose=Isometry3(),
-            color=[1., 1., 1., 1.]):
-        self.scales[box_i] = scale
-        self.poses[box_i] = pose
-        self.colors[box_i] = color
+            self, box_i, scale=None, pose=None,
+            color=None):
+        if scale:
+            self.scales[box_i] = scale
+        if pose:
+            self.poses[box_i] = pose
+        if color:
+            self.colors[box_i] = color
 
     def get_num_bboxes(self):
         return self.num_bboxes
@@ -76,8 +92,6 @@ class BoundingBoxBundleTestSource(LeafSystem):
         self.iter = 0
         self.set_name('dummy bbox publisher')
         self._DeclarePeriodicPublish(0.03333, 0.0)
-
-        # Optional pose bundle of bounding boxes.
 
         self.bbox_bundle_output_port = \
             self._DeclareAbstractOutputPort(
@@ -113,7 +127,8 @@ class BlenderColorCamera(LeafSystem):
                  camera_tfs=[Isometry3()],
                  material_overrides=[],
                  global_transform=Isometry3(),
-		 out_prefix=None):
+                 out_prefix=None,
+                 show_figure=False):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -139,7 +154,7 @@ class BlenderColorCamera(LeafSystem):
         """
         LeafSystem.__init__(self)
 
-	if out_prefix is not None:
+        if out_prefix is not None:
             self.out_prefix = out_prefix
         else:
             self.out_prefix = "/tmp/drake_blender_vis_"
@@ -149,19 +164,20 @@ class BlenderColorCamera(LeafSystem):
         self.draw_period = draw_period
 
         # Pose bundle (from SceneGraph) input port.
-        self._DeclareAbstractInputPort("lcm_visualization",
-                                       AbstractValue.Make(PoseBundle(0)))
+        self._DeclareAbstractInputPort(
+            "lcm_visualization",
+            AbstractValue.Make(PoseBundle(0)))
 
         # Optional pose bundle of bounding boxes.
-        self._DeclareAbstractInputPort("bounding_box_bundle",
-                                       AbstractValue.Make(BoundingBoxBundle(0)))
+        self._DeclareAbstractInputPort(
+            "bounding_box_bundle",
+            AbstractValue.Make(BoundingBoxBundle(0)))
 
         if zmq_url == "default":
             zmq_url = "tcp://127.0.0.1:5556"
         elif zmq_url == "new":
             raise NotImplementedError("TODO")
 
-        # Connect to the server via a 
         if zmq_url is not None:
             print("Connecting to blender server at zmq_url=" + zmq_url + "...")
         self.bsi = BlenderServerInterface(zmq_url=zmq_url)
@@ -173,6 +189,7 @@ class BlenderColorCamera(LeafSystem):
             (re.compile(x[0]), x[1]) for x in material_overrides]
         self.global_transform = global_transform
         self.camera_tfs = camera_tfs
+
         def on_initialize(context, event):
             self.load()
 
@@ -181,7 +198,9 @@ class BlenderColorCamera(LeafSystem):
                 trigger_type=TriggerType.kInitialization,
                 callback=on_initialize))
 
-        plt.figure()
+        self.show_figure = show_figure
+        if self.show_figure:
+            plt.figure()
 
     def _parse_name(self, name):
         # Parse name, split on the first (required) occurrence of `::` to get
@@ -331,7 +350,8 @@ class BlenderColorCamera(LeafSystem):
                         material_type="color",
                         color=geom.color[:4])
 
-                # Finally actually load the geometry now that the material is registered.
+                # Finally actually load the geometry now that the material
+                # is registered.
                 do_load_geom()
 
             self.link_subgeometry_local_tfs_by_link_name[link.name] = tfs
@@ -348,7 +368,7 @@ class BlenderColorCamera(LeafSystem):
             self.bsi.send_remote_call(
                 "configure_rendering",
                 camera_name='cam_%d' % i,
-                resolution=[1280, 720],
+                resolution=[640*2, 480*2],
                 file_format="JPEG")
 
         env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
@@ -366,14 +386,26 @@ class BlenderColorCamera(LeafSystem):
         if bbox_bundle:
             bbox_bundle = bbox_bundle.get_value()
             for k in range(bbox_bundle.get_num_bboxes()):
-                pose = self.global_transform.multiply(bbox_bundle.get_bbox_pose(k))
+                pose = self.global_transform.multiply(
+                    bbox_bundle.get_bbox_pose(k))
                 if (k + 1) > self.num_registered_bounding_boxes:
                     # Register a new one
+                    color = bbox_bundle.get_bbox_color(k)
                     self.bsi.send_remote_call(
                             "register_material",
                             name="mat_bb_%d" % k,
                             material_type="color",
                             color=bbox_bundle.get_bbox_color(k))
+                    self.bsi.send_remote_call(
+                            "update_material_parameters",
+                            type="Principled BSDF",
+                            name="mat_bb_%d" % k,
+                            **{"Specular": 0.0})
+                    self.bsi.send_remote_call(
+                            "update_material_parameters",
+                            type=None,
+                            name="mat_bb_%d" % k,
+                            **{"blend_method": "ADD"})
                     self.bsi.send_remote_call(
                         "register_object",
                         name="obj_bb_%d" % k,
@@ -402,7 +434,8 @@ class BlenderColorCamera(LeafSystem):
                             scale=[x/2 for x in bbox_bundle.get_bbox_scale(k)],
                             location=pose.translation().tolist(),
                             rotation_mode='QUATERNION',
-                            rotation_quaternion=pose.quaternion().wxyz().tolist(),
+                            rotation_quaternion=pose.quaternion().
+                            wxyz().tolist(),
                             hide_render=False)
                     self.num_visible_bounding_boxes = k + 1
             for k in range(bbox_bundle.get_num_bboxes(),
@@ -421,10 +454,12 @@ class BlenderColorCamera(LeafSystem):
                 offset = Isometry3(
                     self.global_transform.matrix().dot(
                         pose_matrix.matrix().dot(
-                            self.link_subgeometry_local_tfs_by_link_name[link_name][j])))
+                            self.link_subgeometry_local_tfs_by_link_name[
+                                link_name][j])))
                 location = offset.translation()
                 quaternion = offset.quaternion().wxyz()
-                geom_name = self._format_geom_name(source_name, frame_name, model_id, j)
+                geom_name = self._format_geom_name(
+                    source_name, frame_name, model_id, j)
                 self.bsi.send_remote_call(
                     "update_object_parameters",
                     name="obj_" + geom_name,
@@ -434,130 +469,22 @@ class BlenderColorCamera(LeafSystem):
 
         n_cams = len(self.camera_tfs)
         for i in range(len(self.camera_tfs)):
-            plt.subplot(1, n_cams, i+1)
-            out_filepath = self.out_prefix + "%02d_%08d.jpg" % (i, self.current_publish_num)
+            out_filepath = self.out_prefix + "%02d_%08d.jpg" % (
+                i, self.current_publish_num)
             im = self.bsi.render_image(
                 "cam_%d" % i, filepath=out_filepath)
-            plt.imshow(im)
+            if self.show_figure:
+                plt.subplot(1, n_cams, i+1)
+                plt.imshow(np.transpose(im, [1, 0, 2]))
 
         if self.current_publish_num == 0:
-	    scene_filepath = self.out_prefix + "_scene.blend"
-            self.bsi.send_remote_call("save_current_scene", path=scene_filepath)
+            scene_filepath = self.out_prefix + "_scene.blend"
+            self.bsi.send_remote_call(
+                "save_current_scene", path=scene_filepath)
             self.published_scene = True
         self.current_publish_num += 1
 
-        plt.pause(0.01)
-
-
-if __name__ == "__main__":
-    builder = DiagramBuilder()
-
-    
-    station = builder.AddSystem(ManipulationStation())
-    station.SetupDefaultStation()
-
-    new_obj_list = [
-      # ['drake/manipulation/models/ycb/sdf/003_cracker_box.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([0.72, -12.3, 0.7]), p=[0.55, 0.2, 0.2])],
-      # ['drake/manipulation/models/ycb/sdf/004_sugar_box.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.1, 0.5, -0.6]), p=[0.45, 0.10, 0.15])],
-      # ['drake/manipulation/models/ycb/sdf/005_tomato_soup_can.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.2, 0., 0.3]), p=[0.4, -0.2, 0.15])],
-      # ['drake/manipulation/models/ycb/sdf/006_mustard_bottle.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.3, -0.1, 0.1])],
-      # ['drake/manipulation/models/ycb/sdf/009_gelatin_box.sdf',
-      #  RigidTransform(rpy=RollPitchYaw([1.8, 5.2, -2.]), p=[0.35, 0.05, 0.1])]
-    ]
-
-    for pair in new_obj_list:
-        station.AddManipulandFromFile(
-            model_file=pair[0],
-            X_WObject=pair[1])
-    station.Finalize()
-
-    #meshcat = builder.AddSystem(MeshcatVisualizer(
-    #        station.get_scene_graph()))
-    #builder.Connect(station.GetOutputPort("pose_bundle"),
-    #                meshcat.get_input_port(0))
-
-
-    #cam_quat_base = RollPitchYaw(
-    #    81.8*np.pi/180.,
-    #    -5.*np.pi/180,
-    #    (129.+90)*np.pi/180.).ToQuaternion().wxyz()
-    #cam_trans_base = [-0.196, 0.816, 0.435]
-    #cam_tf_base = Isometry3(translation=cam_trans_base,
-    #                        quaternion=cam_quat_base)
-    #cam_tfs = [cam_tf_base]
-
-    cam_tfs = []
-    for cam_name in [u"0"]: #, u"1", u"2"]:
-        cam_tf_base = station.GetStaticCameraPosesInWorld()[cam_name].GetAsIsometry3()
-        # Rotate cam to get it into blender +y up, +x right, -z forward
-        cam_tf_base.set_rotation(cam_tf_base.matrix()[:3, :3].dot(
-            RollPitchYaw([-np.pi/2, 0., np.pi/2]).ToRotationMatrix().matrix()))
-        cam_tfs.append(cam_tf_base)
-
-    offset_quat_base = RollPitchYaw(0., 0., np.pi/2).ToQuaternion().wxyz()
-    blender_cam = builder.AddSystem(BlenderColorCamera(
-        station.get_scene_graph(),
-        draw_period=0.0333,
-        camera_tfs=cam_tfs,
-        material_overrides=[
-            (".*amazon_table.*",
-                {"material_type": "CC0_texture",
-                 "path": "data/test_pbr_mats/Metal09/Metal09"}),
-            (".*cupboard_body.*",
-                {"material_type": "CC0_texture",
-                 "path": "data/test_pbr_mats/Wood15/Wood15"}),
-            (".*cupboard.*door.*",
-                {"material_type": "CC0_texture",
-                 "path": "data/test_pbr_mats/Wood08/Wood08"})
-        ],
-        global_transform=Isometry3(translation=[0, 0, 0],
-                                   quaternion=Quaternion(offset_quat_base))
-    ))
-    builder.Connect(station.GetOutputPort("pose_bundle"),
-                    blender_cam.get_input_port(0))
-
-    bbox_source = builder.AddSystem(BoundingBoxBundleTestSource())
-    builder.Connect(bbox_source.get_output_port(0),
-                    blender_cam.get_input_port(1))
-
-    teleop = builder.AddSystem(JointSliders(station.get_controller_plant(),
-                                            length=800))
-
-    filter = builder.AddSystem(FirstOrderLowPassFilter(time_constant=2.0,
-                                                       size=7))
-    builder.Connect(teleop.get_output_port(0), filter.get_input_port(0))
-    builder.Connect(filter.get_output_port(0),
-                    station.GetInputPort("iiwa_position"))
-
-    wsg_buttons = builder.AddSystem(SchunkWsgButtons(teleop.window))
-    builder.Connect(wsg_buttons.GetOutputPort("position"), station.GetInputPort(
-        "wsg_position"))
-    builder.Connect(wsg_buttons.GetOutputPort("force_limit"),
-                    station.GetInputPort("wsg_force_limit"))
-
-    diagram = builder.Build()
-    simulator = Simulator(diagram)
-
-    station_context = diagram.GetMutableSubsystemContext(
-        station, simulator.get_mutable_context())
-
-    station_context.FixInputPort(station.GetInputPort(
-        "iiwa_feedforward_torque").get_index(), np.zeros(7))
-
-    # Eval the output port once to read the initial positions of the IIWA.
-    q0 = station.GetOutputPort("iiwa_position_measured").Eval(
-        station_context)
-    q0[:] = [0., 0.5, 0., -1.75, 0., 1., 0.]
-    teleop.set_position(q0)
-    filter.set_initial_output_value(diagram.GetMutableSubsystemContext(
-        filter, simulator.get_mutable_context()), q0)
-
-    # This is important to avoid duplicate publishes to the hardware interface:
-    simulator.set_publish_every_time_step(False)
-
-    simulator.set_target_realtime_rate(1.0)
-    simulator.StepTo(100.0)
+        if self.show_figure:
+            plt.pause(0.01)
+        print("Rendered a frame at %f seconds sim-time." % (
+            context.get_time()))

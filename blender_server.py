@@ -8,7 +8,7 @@ import zmq
   The server provides minimal operating functionality:
 
   Remote command interface, for remotely piloting
-  any function in the blender scene management module: 
+  any function in the blender scene management module:
   Send a JSON dict of this form:
   {
     func: <string of the function name>,
@@ -23,11 +23,6 @@ import zmq
   return the image bytes (jpeg bytes) instead of "Success".
 '''
 
-
-# TODO(gizatt) Why is this required?
-# Why isn't current launch dir included in sys.path?
-print(sys.path)
-sys.path.append("/home/gizatt/tools/blender_server/")
 import blender_scripts.blender_scene_management as bsm
 
 if __name__ == '__main__':
