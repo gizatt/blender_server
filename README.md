@@ -38,6 +38,15 @@ with the `drake_blender_visualizer/get_example_trajectory.sh` script. Then run t
 
 ## Setup
 
+### Python
+
+Make sure that the folder containing this module is on your PYTHONPATH -- e.g. I put this module in my
+`~/tools` folder, so I do:
+
+```export PYTHONPATH=~/tools:${PYTHONPATH}```
+
+### Blender
+
 This requires Blender >= 2.8 (to use the nice Eevee renderer), and has only
 been tested on Ubuntu 16.04. It probably works on 18.04, it probably works
 on Mac, it might work on Windows... but that's not tested yet.
@@ -60,6 +69,7 @@ document how to do this in the future, but how I did it was approximately:
 2) conda install attrs && pip install zmq
 3) Copy "attr*" (not "attrs*"!) and "zmq*" and "pyzmq*" from the environment's `site-packages` folder to `blender-2.80/2.80/python/lib/python3.7/site-packages/`.
 4) Copy "libsodium*" and "libzmq*" from the environment's `lib` folder to `blender-2.80/2.80/python/lib`. This was necessary, I think, because I had other versions of those libraries in my system somewhere that were conflicting, so I needed to give Blender the right version with higher priority.
+
 
 
 ## Schematic Flow for Rendering a Simple Scene
