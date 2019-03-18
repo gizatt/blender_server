@@ -26,9 +26,14 @@ jpeg).
 
 ## Usage + Examples
 
+First, you'll probably want to get some assets. You can use the `data/get_example_assets.sh` to get the assets necessary to run the below examples.
+
 - Using the abstraction layer itself from Blender: launch `render_main_bsm.py` with Blender, using e.g. `run_example_bsh.sh`.
 - Using the Blender server: launch the Blender server with blender, using e.g. `run_blender_server.sh`. Then run `test_blender_server.py` with any Python that has `zmq`, `numpy`, and `imageio`.	
 - Using the lower-level utilities: launch `render_main_manual.py` with Blender, using e.g. `run_example_manual.sh`.
+
+If you want to play with the Drake ManipulationStation example, you'll want example trajectory and bounding box detections files, which you can get
+with the `drake_blender_visualizer/get_example_trajectory.sh` script. Then run the appropriately-named demo script like so:
 
 
 ## Setup
