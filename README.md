@@ -1,6 +1,7 @@
 Remote-Operated Blender
 -----------------------
-![Demo video](drake_blender_visualizer/video.gif "Demo video")
+<a href="https://www.youtube.com/watch?v=zUS33rvbRsc" target="_blank"><img src="drake_blender_visualizer/ycb_manipulation_renders.gif" 
+alt="Preview of YCB manipulation example" border="10" /></a>
 
 <a href="https://www.youtube.com/watch?v=oXHxblWw6YA" target="_blank"><img src="drake_blender_visualizer/ycb_subset_renders.jpg" 
 alt="Preview of YCB subset example" border="10" /></a>
@@ -26,15 +27,25 @@ jpeg).
 
 ## Usage + Examples
 
+### Basic examples
 First, you'll probably want to get some assets. You can use the `data/get_example_assets.sh` to get the assets necessary to run the below examples.
 
 - Using the abstraction layer itself from Blender: launch `render_main_bsm.py` with Blender, using e.g. `run_example_bsh.sh`.
 - Using the Blender server: launch the Blender server with blender, using e.g. `run_blender_server.sh`. Then run `test_blender_server.py` with any Python that has `zmq`, `numpy`, and `imageio`.	
 - Using the lower-level utilities: launch `render_main_manual.py` with Blender, using e.g. `run_example_manual.sh`.
 
-If you want to play with the Drake ManipulationStation example, you'll want example trajectory and bounding box detections files, which you can get
-with the `drake_blender_visualizer/get_example_trajectory.sh` script. Then run the appropriately-named demo script like so:
+### Visualizing Drake robot simulations
 
+If you want to play with the Drake robot simulation examples, you'll want both the above example assets, and also
+possible example trajectory and bounding box detections files, which you can get
+with the `drake_blender_visualizer/get_example_trajectory.sh` script. 
+
+You can launch the YCB object simulation by using `run_blender_server.sh` in one terminal, and then running
+`python demo_blender_visualizer_on_ycb_tabletop.py`. This will dump images in `/tmp/ycb_scene_%02/` folders.
+
+You can launch the ManipulationStation teleop playback example with
+`python demo_manipulation_station_with_bounding_boxes.py --log example_trajectory/teleop_log_manual_final.pickle --log_bbox example_trajectory/ycb_detections_full.yaml`.
+This will dump images in the `/tmp/manipulation_station_ycb` folder. Some convenience scripts for rendering videos are provided in this directory.
 
 ## Setup
 
