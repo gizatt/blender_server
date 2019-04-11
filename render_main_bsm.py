@@ -1,6 +1,7 @@
 import bpy
 import numpy as np
 import os
+import random
 import sys
 
 import blender_scripts.blender_scene_management as bsm
@@ -66,10 +67,11 @@ if __name__ == '__main__':
                             resolution=[1920, 1200],
                             file_format="JPEG")
 
-    env_map_path = "./data/env_maps/aerodynamics_workshop_4k.hdr"
-    bsm.set_environment_map(path=env_map_path)
-
-    bsm.save_current_scene('./out/save.blend')
+    possible_env_maps = [
+        None,
+        "./data/env_maps/aerodynamics_workshop_4k.hdr",
+        "./data/env_maps/skybox_texture.jpg"
+    ]
 
     for i in range(10):
         for obj_tmp in objs:
@@ -83,6 +85,9 @@ if __name__ == '__main__':
                 location=loc,
                 rotation_mode='QUATERNION',
                 rotation_quaternion=quat)
+
+        bsm.set_environment_map(path=random.choice(possible_env_maps))
+        bsm.save_current_scene('./out/save_%d.blend' % i)
 
         bsm.configure_rendering(
             camera_name='cam_1', 

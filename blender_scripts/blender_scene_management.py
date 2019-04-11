@@ -16,6 +16,8 @@ def initialize_scene():
     # Add a world
     bpy.ops.world.new()
     bpy.context.scene.world = bpy.data.worlds[0]
+    # Default background color: flat black
+    bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = [0, 0, 0, 1.]
 
 def populate_image_node_from_file(nodes, path):
     image = bpy.data.images.load(path, check_existing=True)
@@ -201,15 +203,27 @@ def update_material_parameters(name,
         else:
             setattr(obj, arg_name, arg_value)
 
+loaded_environment_nodes = {}
+# None to detach, otherwise provide a path to an env map file.
 def set_environment_map(path):
     # Overwrite the world background node input.
     nodes = bpy.context.scene.world.node_tree.nodes
     links = bpy.context.scene.world.node_tree.links
 
-    enode = nodes.new("ShaderNodeTexEnvironment")
-    enode.image = bpy.data.images.load(path)
-    links.new(enode.outputs['Color'], nodes['Background'].inputs['Color'])
+    for l in nodes['Background'].inputs['Color'].links:
+        links.remove(l)
 
+    if path is None:
+        return
+
+    if path not in loaded_environment_nodes.keys():
+        enode = nodes.new("ShaderNodeTexEnvironment")
+        enode.image = bpy.data.images.load(path)
+        loaded_environment_nodes[path] = enode
+
+    links.new(loaded_environment_nodes[path].outputs['Color'],
+              nodes['Background'].inputs['Color'])
+    
 
 def register_camera(name,
                     location=None,
