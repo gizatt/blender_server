@@ -27,6 +27,12 @@ def populate_image_node_from_file(nodes, path):
 def register_material(name, material_type, path=None, color=None):
     '''
     Legal material_types:
+
+        Emission node type:
+        - "emission", with color being a 3-element float vector
+        ranging [0,1] (an RGB specification).
+
+        Principled BSDF:
         - "color", with color being a 3-element float vector
         ranging [0,1] (an RGB specification).
         - "color_texture": Path must be an image file
@@ -45,14 +51,16 @@ def register_material(name, material_type, path=None, color=None):
     links = mat.node_tree.links
     for node in nodes:
         nodes.remove(node)
-    bsdf_node = nodes.new(type='ShaderNodeBsdfPrincipled')
-    output_node = nodes.new(type='ShaderNodeOutputMaterial')
-    links.new(output_node.inputs['Surface'], bsdf_node.outputs['BSDF'])
 
+    # Principled BSDF types
     if material_type == "color":
+        mat_node = nodes.new(type='ShaderNodeBsdfPrincipled')
         print("Using base color ", color)
-        bsdf_node.inputs["Base Color"].default_value = color
+        mat_node.inputs["Base Color"].default_value = color
+        mat_node_output = mat_node.outputs['BSDF']
+
     elif material_type == "CC0_texture":
+        mat_node = nodes.new(type='ShaderNodeBsdfPrincipled')
         possible_completions_for_pbsdf = {
             "Base Color": "_col.jpg",
             "Metallic": "_met.jpg",
@@ -68,27 +76,40 @@ def register_material(name, material_type, path=None, color=None):
                 print("Using path %s" % texture_full_path)
                 texture_image_node = populate_image_node_from_file(
                     nodes, texture_full_path)
-                links.new(bsdf_node.inputs[input_name],
+                links.new(mat_node.inputs[input_name],
                           texture_image_node.outputs['Color'])
                 links.new(texture_image_node.inputs['Vector'],
                           uvmap_node.outputs['UV'])
         
             else:
                 print("Not using path %s" % texture_full_path)
+        mat_node_output = mat_node.outputs['BSDF']
     elif material_type == "color_texture":
+        mat_node = nodes.new(type='ShaderNodeBsdfPrincipled')
         print("Using path %s" % path)
         texture_image_node = populate_image_node_from_file(
             nodes, path)
         uvmap_node = nodes.new("ShaderNodeUVMap")
         uvmap_node.uv_map = 'UVMap'
-        links.new(bsdf_node.inputs["Base Color"],
+        links.new(mat_node.inputs["Base Color"],
                   texture_image_node.outputs['Color'])
         links.new(texture_image_node.inputs['Vector'],
                   uvmap_node.outputs['UV'])
+        mat_node_output = mat_node.outputs['BSDF']
+
+    # emission type
+    elif material_type == "emission":
+        mat_node = nodes.new(type='ShaderNodeEmission')
+        print("Using base color for emission", color)
+        mat_node.inputs[0].default_value = color
+        mat_node_output = mat_node.outputs['Emission']
 
     else:
         raise IllegalArgumentException(
             "Invalid material_type %s" % material_type)
+
+    output_node = nodes.new(type='ShaderNodeOutputMaterial')
+    links.new(output_node.inputs['Surface'], mat_node_output)
 
 def register_object(name, type,
                     path=None,

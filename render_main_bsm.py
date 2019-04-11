@@ -19,6 +19,24 @@ if __name__ == '__main__':
                         scale=[1.0, 1.0, 0.25],
                         material="metal26")
 
+    bsm.register_material("pink",
+                          material_type="color",
+                          color=[1.0, 0.047, 0.172, 1.0])
+    bsm.register_object("obj_pink_box",
+                        type="cube",
+                        location=[0, 0, 0.],
+                        scale=[0.05, 0.05, 0.05],
+                        material="pink")
+
+    bsm.register_material("emission_pink",
+                          material_type="emission",
+                          color=[1.0, 0.047, 0.172, 1.0])
+    bsm.register_object("obj_emission_pink_box",
+                        type="cube",
+                        location=[0.15, 0, 0.],
+                        scale=[0.05, 0.05, 0.05],
+                        material="emission_pink")
+
 
     object_classes = [
             "./data/test_objs/ycb/004_sugar_box/google_16k/",
