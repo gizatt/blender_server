@@ -230,7 +230,7 @@ if __name__ == "__main__":
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=False,
-        draw_period=0.03333333,
+        draw_period=0.03333,
         camera_tfs=cam_tfs,
         material_overrides=[
             (".*amazon_table.*",
