@@ -65,15 +65,16 @@ if __name__ == '__main__':
         resolution=[1920, 1200],
         file_format="JPEG")
 
-    env_map_path = "./data/env_maps/aerodynamics_workshop_4k.hdr"
-    bsi.send_remote_call(
-        "set_environment_map",
-        path=env_map_path)
-
-    bsi.send_remote_call("save_current_scene", path="./out/save.blend")
-
     plt.figure()
     for i in range(1000):
+        env_map_path = "./data/env_maps/aerodynamics_workshop_4k.hdr"
+        bsi.send_remote_call(
+            "set_environment_map",
+            path=env_map_path)
+
+        bsi.send_remote_call("save_current_scene", path="./out/save.blend")
+
+
         for obj_tmp in objs:
             loc = [np.random.uniform(-0.4, 0.4),
                    np.random.uniform(-0.4, 0.4),
