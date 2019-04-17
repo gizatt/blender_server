@@ -111,11 +111,11 @@ class BoundingBoxBundleTestSource(LeafSystem):
         y_data.set_value(bbox_bundle)
 
 
-class BlenderCamera(LeafSystem):
+class BlenderColorCamera(LeafSystem):
     """
-    BlenderCamera is a System block that connects to the pose bundle output
-    port of a SceneGraph and uses BlenderServer to render color, depth,
-    and label images.
+    BlenderColorCamera is a System block that connects to the pose bundle
+    output port of a SceneGraph and uses BlenderServer to render a color camera
+    image.
     """
 
     def __init__(self,

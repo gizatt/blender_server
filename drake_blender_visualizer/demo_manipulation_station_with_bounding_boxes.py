@@ -42,7 +42,7 @@ from pydrake.common.eigen_geometry import Isometry3
 
 
 from blender_server.drake_blender_visualizer.blender_visualizer import (
-    BlenderCamera,
+    BlenderColorCamera,
     BoundingBoxBundle
 )
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
     offset_quat_base = RollPitchYaw(0., 0., np.pi/4).ToQuaternion().wxyz()
     os.system("rm -r /tmp/manipulation_station_ycb && mkdir -p /tmp/manipulation_station_ycb")
-    blender_cam = builder.AddSystem(BlenderCamera(
+    blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=False,
         draw_period=0.03333,

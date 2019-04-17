@@ -245,38 +245,45 @@ def register_camera(name,
     if angle is not None:
         cam.data.angle = angle
 
+
 def configure_rendering(camera_name,
                         resolution=None,
                         file_format=None,
                         filepath=None):
+    renderer_config = renderer_option.EeveeRendererOption()
+
     if resolution is not None:
         resolution_x, resolution_y = resolution
-        renderer_config = renderer_option.EeveeRendererOption()
         renderer_config.resolution_x = resolution_x
         renderer_config.resolution_y = resolution_y
-        renderer_option.setup_and_use_eevee(renderer_config,
-            camera_name=camera_name)
+
+    renderer_option.setup_and_use_eevee(
+        renderer_config, camera_name=camera_name)
 
     if file_format is not None:
-        bpy.context.scene.render.image_settings.file_format='JPEG'
+        bpy.context.scene.render.image_settings.file_format = 'JPEG'
 
     if filepath is not None:
         bpy.context.scene.render.filepath = filepath
+
 
 def save_current_scene(path):
     prefix_except_file = os.path.split(path)[0]
     os.system("mkdir -p %s" % prefix_except_file)
     blender_utils.save_current_scene(path)
 
+
 def render(camera_name, write_still=True):
     bpy.context.scene.camera = bpy.context.scene.objects[camera_name]
     bpy.ops.render.render(use_viewport=False, write_still=write_still)
 
+
 def render_and_return_image_bytes(camera_name, filepath=None):
     bpy.context.scene.camera = bpy.context.scene.objects[camera_name]
-    
+
     if filepath is None:
-        output_file = "/tmp/blender_server_%d.jpg" % (time.time() * 1000 * 1000)
+        output_file = "/tmp/blender_server_%d.jpg" % (
+            time.time() * 1000 * 1000)
     else:
         output_file = filepath
     old_filepath = bpy.context.scene.render.filepath
