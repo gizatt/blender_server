@@ -124,6 +124,7 @@ if __name__ == "__main__":
             scene_graph,
             draw_period=0.03333/2.,
             camera_tfs=cam_tfs,
+            env_map_path="/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr",
             material_overrides=[
                 (".*ground.*",
                     {"material_type": "CC0_texture",

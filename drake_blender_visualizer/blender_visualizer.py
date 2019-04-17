@@ -111,10 +111,11 @@ class BoundingBoxBundleTestSource(LeafSystem):
         y_data.set_value(bbox_bundle)
 
 
-class BlenderColorCamera(LeafSystem):
+class BlenderCamera(LeafSystem):
     """
-    BlenderColorCamera is a System block that connects to the pose bundle output
-    port of a SceneGraph and uses BlenderServer to render a color camera image.
+    BlenderCamera is a System block that connects to the pose bundle output
+    port of a SceneGraph and uses BlenderServer to render color, depth,
+    and label images.
     """
 
     def __init__(self,
@@ -124,6 +125,7 @@ class BlenderColorCamera(LeafSystem):
                  camera_tfs=[RigidTransform()],
                  material_overrides=[],
                  global_transform=RigidTransform(),
+                 env_map_path=None,
                  out_prefix=None,
                  show_figure=False):
         """
@@ -180,6 +182,8 @@ class BlenderColorCamera(LeafSystem):
         self.bsi = BlenderServerInterface(zmq_url=zmq_url)
         print("Connected to Blender server.")
         self._scene_graph = scene_graph
+
+        self.env_map_path = env_map_path
 
         # Compile regex for the material overrides
         self.material_overrides = [
@@ -374,11 +378,10 @@ class BlenderColorCamera(LeafSystem):
                 resolution=[640*2, 480*2],
                 file_format="JPEG")
 
-        #env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
-        #env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/lebombo_4k.hdr"
-        #self.bsi.send_remote_call(
-        #    "set_environment_map",
-        #    path=env_map_path)
+        if self.env_map_path:
+            self.bsi.send_remote_call(
+                "set_environment_map",
+                path=self.env_map_path)
 
     def DoPublish(self, context, event):
         # TODO(russt): Change this to declare a periodic event with a
