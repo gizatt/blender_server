@@ -111,6 +111,279 @@ class BoundingBoxBundleTestSource(LeafSystem):
         y_data.set_value(bbox_bundle)
 
 
+class BlenderLabelCamera(LeafSystem):
+    """
+    BlenderLabelCamera is a System block that connects to the pose bundle
+    output port of a SceneGraph and uses BlenderServer to render label images.
+    """
+
+    def __init__(self,
+                 scene_graph,
+                 zmq_url="default",
+                 draw_period=0.033333,
+                 camera_tfs=[Isometry3()],
+                 global_transform=Isometry3(),
+                 out_prefix=None,
+                 show_figure=False):
+        """
+        Args:
+            scene_graph: A SceneGraph object.
+            draw_period: The rate at which this class publishes rendered
+                images.
+            zmq_url: Optionally set a url to connect to the blender server.
+                Use zmp_url="default" to the value obtained by running a
+                single blender server in another terminal.
+                TODO(gizatt): Use zmp_url=None or zmq_url="new" to start a
+                new server (as a child of this process); a new web browser
+                will be opened (the url will also be printed to the console).
+                Use e.g. zmq_url="tcp://127.0.0.1:5556" to specify a
+                specific address.
+            camera tfs: List of Isometry3 camera tfs.
+            global transform: Isometry3 that gets premultiplied to every object.
+
+        Note: This call will not return until it connects to the
+              Blender server.
+
+        TODO(gizatt) Consolidate functionality with BlenderColorCamera
+        into a single BlenderCamera. Needs careful architecting to still support
+        rendering color + label images with different Blender servers in parallel.
+        """
+        LeafSystem.__init__(self)
+
+        if out_prefix is not None:
+            self.out_prefix = out_prefix
+        else:
+            self.out_prefix = "/tmp/drake_blender_vis_labels_"
+        self.current_publish_num = 0
+        self.set_name('blender_label_camera')
+        self._DeclarePeriodicPublish(draw_period, 0.0)
+        self.draw_period = draw_period
+
+        # Pose bundle (from SceneGraph) input port.
+        self._DeclareAbstractInputPort(
+            "lcm_visualization",
+            AbstractValue.Make(PoseBundle(0)))
+
+        if zmq_url == "default":
+            zmq_url = "tcp://127.0.0.1:5556"
+        elif zmq_url == "new":
+            raise NotImplementedError("TODO")
+
+        if zmq_url is not None:
+            print("Connecting to blender server at zmq_url=" + zmq_url + "...")
+        self.bsi = BlenderServerInterface(zmq_url=zmq_url)
+        print("Connected to Blender server.")
+        self._scene_graph = scene_graph
+
+        self.global_transform = global_transform
+        self.camera_tfs = camera_tfs
+
+        def on_initialize(context, event):
+            self.load()
+
+        self._DeclareInitializationEvent(
+            event=PublishEvent(
+                trigger_type=TriggerType.kInitialization,
+                callback=on_initialize))
+
+        self.show_figure = show_figure
+        if self.show_figure:
+            plt.figure()
+
+    def _parse_name(self, name):
+        # Parse name, split on the first (required) occurrence of `::` to get
+        # the source name, and let the rest be the frame name.
+        # TODO(eric.cousineau): Remove name parsing once #9128 is resolved.
+        delim = "::"
+        assert delim in name
+        pos = name.index(delim)
+        source_name = name[:pos]
+        frame_name = name[pos + len(delim):]
+        return source_name, frame_name
+
+    def _format_geom_name(self, source_name, frame_name, model_id, i):
+        return "{}::{}::{}::{}".format(source_name, model_id, frame_name, i)
+
+    def load(self):
+        """
+        Loads all visualization elements in the Blender server.
+
+        @pre The `scene_graph` used to construct this object must be part of a
+        fully constructed diagram (e.g. via `DiagramBuilder.Build()`).
+        """
+        self.bsi.send_remote_call("initialize_scene")
+
+        # Intercept load message via mock LCM.
+        mock_lcm = DrakeMockLcm()
+        DispatchLoadMessage(self._scene_graph, mock_lcm)
+        load_robot_msg = lcmt_viewer_load_robot.decode(
+            mock_lcm.get_last_published_message("DRAKE_VIEWER_LOAD_ROBOT"))
+        # Load all the elements over on the Blender side.
+        self.num_link_geometries_by_link_name = {}
+        self.link_subgeometry_local_tfs_by_link_name = {}
+        self.geom_name_to_color_map = {}
+        num_allocated_labels = 0
+        max_num_objs = sum([load_robot_msg.link[i].num_geom
+                            for i in range(load_robot_msg.num_links)])
+        cmap = plt.cm.get_cmap("hsv", max_num_objs+1)
+        for i in range(load_robot_msg.num_links):
+            link = load_robot_msg.link[i]
+            [source_name, frame_name] = self._parse_name(link.name)
+            self.num_link_geometries_by_link_name[link.name] = link.num_geom
+
+            tfs = []
+            for j in range(link.num_geom):
+                geom = link.geom[j]
+
+                # MultibodyPlant currently sets alpha=0 to make collision
+                # geometry "invisible".  Ignore those geometries here.
+                if geom.color[3] == 0:
+                    continue
+
+                geom_name = self._format_geom_name(source_name, frame_name, link.robot_num, j)
+
+                tfs.append(RigidTransform(
+                    RotationMatrix(Quaternion(geom.quaternion)),
+                    geom.position).GetAsMatrix4())
+
+                # It will have a material with this key.
+                material_key = "material_" + geom_name
+                label_num = num_allocated_labels
+                self.geom_name_to_color_map[geom_name] = cmap(label_num)
+                num_allocated_labels += 1
+
+                material_key_assigned = self.bsi.send_remote_call(
+                    "register_material",
+                    name=material_key,
+                    material_type="emission",
+                    color=cmap(label_num))
+
+                if geom.type == geom.BOX:
+                    assert geom.num_float_data == 3
+                    # Blender cubes are 2x2x2 by default
+                    self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="cube",
+                        scale=[x*0.5 for x in geom.float_data[:3]],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
+
+                elif geom.type == geom.SPHERE:
+                    assert geom.num_float_data == 1
+                    self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="sphere",
+                        scale=geom.float_data[0],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
+
+                elif geom.type == geom.CYLINDER:
+                    assert geom.num_float_data == 2
+                    # Blender cylinders are r=1, h=2 by default
+                    self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="cylinder",
+                        scale=[geom.float_data[0], geom.float_data[0], 0.5*geom.float_data[1]],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
+
+                elif geom.type == geom.MESH:
+                    self.bsi.send_remote_call(
+                        "register_object",
+                        name="obj_" + geom_name,
+                        type="obj",
+                        path=geom.string_data[0:-3] + "obj",
+                        scale=geom.float_data[:3],
+                        location=geom.position,
+                        quaternion=geom.quaternion,
+                        material=material_key)
+
+                else:
+                    print("UNSUPPORTED GEOMETRY TYPE {} IGNORED".format(
+                          geom.type))
+                    continue
+
+            self.link_subgeometry_local_tfs_by_link_name[link.name] = tfs
+
+        for i, camera_tf in enumerate(self.camera_tfs):
+            camera_tf_post = self.global_transform.multiply(camera_tf)
+            self.bsi.send_remote_call(
+                "register_camera",
+                name="cam_%d" % i,
+                location=camera_tf_post.translation().tolist(),
+                quaternion=camera_tf_post.quaternion().wxyz().tolist(),
+                angle=90)
+
+            self.bsi.send_remote_call(
+                "configure_rendering",
+                camera_name='cam_%d' % i,
+                resolution=[640, 480],
+                file_format="BMP",
+                configure_for_masks=True,
+                taa_render_samples=1)
+
+        self.bsi.send_remote_call(
+            "set_environment_map",
+            path=None)
+
+    def _DoPublish(self, context, event):
+        # TODO(russt): Change this to declare a periodic event with a
+        # callback instead of overriding _DoPublish, pending #9992.
+        LeafSystem._DoPublish(self, context, event)
+
+        pose_bundle = self.EvalAbstractInput(context, 0).get_value()
+
+        for frame_i in range(pose_bundle.get_num_poses()):
+            link_name = pose_bundle.get_name(frame_i)
+            [source_name, frame_name] = self._parse_name(link_name)
+            model_id = pose_bundle.get_model_instance_id(frame_i)
+            pose_matrix = pose_bundle.get_pose(frame_i)
+            for j in range(self.num_link_geometries_by_link_name[link_name]):
+                offset = Isometry3(
+                    self.global_transform.matrix().dot(
+                        pose_matrix.matrix().dot(
+                            self.link_subgeometry_local_tfs_by_link_name[
+                                link_name][j])))
+                location = offset.translation()
+                quaternion = offset.quaternion().wxyz()
+                geom_name = self._format_geom_name(
+                    source_name, frame_name, model_id, j)
+                self.bsi.send_remote_call(
+                    "update_object_parameters",
+                    name="obj_" + geom_name,
+                    location=location.tolist(),
+                    rotation_mode='QUATERNION',
+                    rotation_quaternion=quaternion.tolist())
+
+        n_cams = len(self.camera_tfs)
+        for i in range(len(self.camera_tfs)):
+            out_filepath = self.out_prefix + "%02d_%08d_label.bmp" % (
+                i, self.current_publish_num)
+            im = self.bsi.render_image(
+                "cam_%d" % i, filepath=out_filepath)
+            if self.show_figure:
+                plt.subplot(1, n_cams, i+1)
+                plt.imshow(np.transpose(im, [1, 0, 2]))
+
+        if self.current_publish_num == 0:
+            scene_filepath = self.out_prefix + "_scene.blend"
+            self.bsi.send_remote_call(
+                "save_current_scene", path=scene_filepath)
+            self.published_scene = True
+        self.current_publish_num += 1
+
+        if self.show_figure:
+            plt.pause(0.01)
+        print("Rendered a frame at %f seconds sim-time." % (
+            context.get_time()))
+
+
 class BlenderColorCamera(LeafSystem):
     """
     BlenderColorCamera is a System block that connects to the pose bundle
@@ -375,7 +648,7 @@ class BlenderColorCamera(LeafSystem):
             self.bsi.send_remote_call(
                 "configure_rendering",
                 camera_name='cam_%d' % i,
-                resolution=[640*2, 480*2],
+                resolution=[640, 480],
                 file_format="JPEG")
 
         if self.env_map_path:

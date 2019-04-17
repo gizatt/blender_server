@@ -93,6 +93,11 @@ class EeveeRendererOption(RendererOption):
     shadow_method = 'VSM'
     shadow_cube_size = '1024'
 
+    use_ssr = True
+    taa_render_samples = 20
+    ssr_max_roughness = 0.1
+
+
 
 def setup_and_use_eevee(option: EeveeRendererOption, camera_name='Camera'):
     # The general setup code
@@ -107,6 +112,6 @@ def setup_and_use_eevee(option: EeveeRendererOption, camera_name='Camera'):
     bpy.context.scene.eevee.shadow_method = option.shadow_method
     bpy.context.scene.eevee.use_soft_shadows = option.use_soft_shadow
     bpy.context.scene.eevee.shadow_cube_size = option.shadow_cube_size
-    bpy.context.scene.eevee.taa_render_samples = 20
-    bpy.context.scene.eevee.use_ssr = True
-    bpy.context.scene.eevee.ssr_max_roughness = 0.1
+    bpy.context.scene.eevee.taa_render_samples = option.taa_render_samples
+    bpy.context.scene.eevee.use_ssr = option.use_ssr
+    bpy.context.scene.eevee.ssr_max_roughness = option.ssr_max_roughness

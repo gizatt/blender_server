@@ -249,7 +249,9 @@ def register_camera(name,
 def configure_rendering(camera_name,
                         resolution=None,
                         file_format=None,
-                        filepath=None):
+                        filepath=None,
+                        configure_for_masks=False,
+                        taa_render_samples=None):
     renderer_config = renderer_option.EeveeRendererOption()
 
     if resolution is not None:
@@ -257,11 +259,28 @@ def configure_rendering(camera_name,
         renderer_config.resolution_x = resolution_x
         renderer_config.resolution_y = resolution_y
 
+    if taa_render_samples:
+        renderer_config.taa_render_samples = taa_render_samples
+
+    if configure_for_masks:
+        renderer_config.use_ssr = False
+        renderer_config.use_soft_shadow = False
+        renderer_config.use_ambient_occlusion = False
+        bpy.data.scenes["Scene"].display_settings.display_device = "None"
+        bpy.data.scenes["Scene"].sequencer_colorspace_settings.name = "Non-Color"
+    else:
+        renderer_config.use_ssr = True
+        renderer_config.use_soft_shadow = True
+        renderer_config.use_ambient_occlusion = True
+        bpy.data.scenes["Scene"].display_settings.display_device = "sRGB"
+        bpy.data.scenes["Scene"].sequencer_colorspace_settings.name = "Linear"
+
+
     renderer_option.setup_and_use_eevee(
         renderer_config, camera_name=camera_name)
 
     if file_format is not None:
-        bpy.context.scene.render.image_settings.file_format = 'JPEG'
+        bpy.context.scene.render.image_settings.file_format = file_format
 
     if filepath is not None:
         bpy.context.scene.render.filepath = filepath

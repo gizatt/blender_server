@@ -46,9 +46,13 @@ from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
 from pydrake.systems.primitives import FirstOrderLowPassFilter
-from pydrake.common.eigen_geometry import Isometry3
 from pydrake.solvers.mathematicalprogram import MathematicalProgram, Solve
-from blender_server.drake_blender_visualizer.blender_visualizer import BlenderColorCamera
+from pydrake.util.eigen_geometry import Isometry3
+
+from blender_server.drake_blender_visualizer.blender_visualizer import (
+    BlenderColorCamera,
+    BlenderLabelCamera
+)
 
 
 def RegisterVisualAndCollisionGeometry(
@@ -120,10 +124,11 @@ if __name__ == "__main__":
 
         offset_quat_base = RollPitchYaw(0., 0., 0.).ToQuaternion().wxyz()
         os.system("mkdir -p /tmp/ycb_scene_%03d" % scene_k)
-        blender_cam = builder.AddSystem(BlenderColorCamera(
+        blender_color_cam = builder.AddSystem(BlenderColorCamera(
             scene_graph,
             draw_period=0.03333/2.,
             camera_tfs=cam_tfs,
+            zmq_url="tcp://127.0.0.1:5556",
             env_map_path="/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr",
             material_overrides=[
                 (".*ground.*",
@@ -135,7 +140,19 @@ if __name__ == "__main__":
             out_prefix="/tmp/ycb_scene_%03d/" % scene_k
         ))
         builder.Connect(scene_graph.get_pose_bundle_output_port(),
-                        blender_cam.get_input_port(0))
+                        blender_color_cam.get_input_port(0))
+
+        blender_label_cam = builder.AddSystem(BlenderLabelCamera(
+            scene_graph,
+            draw_period=0.03333/2.,
+            camera_tfs=cam_tfs,
+            zmq_url="tcp://127.0.0.1:5557",
+            global_transform=Isometry3(translation=[0, 0, 0],
+                                       quaternion=Quaternion(offset_quat_base)),
+            out_prefix="/tmp/ycb_scene_%03d/" % scene_k
+        ))
+        builder.Connect(scene_graph.get_pose_bundle_output_port(),
+                        blender_label_cam.get_input_port(0))
         diagram = builder.Build()
 
         diagram_context = diagram.CreateDefaultContext()
