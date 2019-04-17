@@ -8,7 +8,12 @@ import time
 from blender_server_interface.blender_server_interface import BlenderServerInterface
 
 if __name__ == '__main__':
-    bsi = BlenderServerInterface(zmq_url="tcp://127.0.0.1:5556")
+    if len(sys.argv) > 1:
+        port = sys.argv[-1]
+    else:
+        port = "5556"
+
+    bsi = BlenderServerInterface(zmq_url="tcp://127.0.0.1:%s" % port)
 
     bsi.send_remote_call("initialize_scene")
 
