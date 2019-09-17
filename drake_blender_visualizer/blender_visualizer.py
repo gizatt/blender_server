@@ -18,7 +18,7 @@ import numpy as np
 from drake import lcmt_viewer_load_robot
 from pydrake.common.eigen_geometry import Quaternion
 from pydrake.geometry import DispatchLoadMessage, SceneGraph
-from pydrake.lcm import DrakeMockLcm
+from pydrake.lcm import DrakeMockLcm, Subscriber
 from pydrake.math import RigidTransform, RotationMatrix, RollPitchYaw
 from pydrake.systems.framework import (
     AbstractValue, LeafSystem, PublishEvent, TriggerType
@@ -27,9 +27,6 @@ from pydrake.systems.rendering import PoseBundle
 from pydrake.multibody.plant import ContactResults
 
 from pydrake.common import FindResourceOrThrow
-from pydrake.examples.manipulation_station import (
-    ManipulationStation,
-    CreateDefaultYcbObjectList)
 from pydrake.manipulation.simple_ui import JointSliders, SchunkWsgButtons
 from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
@@ -38,7 +35,7 @@ from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
 from pydrake.systems.primitives import (
     FirstOrderLowPassFilter, TrajectorySource)
 from pydrake.trajectories import PiecewisePolynomial
-from pydrake.util.eigen_geometry import Isometry3
+from pydrake.common.eigen_geometry import Isometry3
 
 
 from blender_server.blender_server_interface.blender_server_interface import (
@@ -124,9 +121,9 @@ class BlenderColorCamera(LeafSystem):
                  scene_graph,
                  zmq_url="default",
                  draw_period=0.033333,
-                 camera_tfs=[Isometry3()],
+                 camera_tfs=[RigidTransform()],
                  material_overrides=[],
-                 global_transform=Isometry3(),
+                 global_transform=RigidTransform(),
                  out_prefix=None,
                  show_figure=False):
         """
@@ -142,12 +139,12 @@ class BlenderColorCamera(LeafSystem):
                 will be opened (the url will also be printed to the console).
                 Use e.g. zmq_url="tcp://127.0.0.1:5556" to specify a
                 specific address.
-            camera tfs: List of Isometry3 camera tfs.
+            camera tfs: List of RigidTransform camera tfs.
             material_overrides: A list of tuples of regex rules and
                 material override arguments to be passed into a
                 a register material call, not including names. (Those are
                 assigned automatically by this class.)
-            global transform: Isometry3 that gets premultiplied to every object.
+            global transform: RigidTransform that gets premultiplied to every object.
 
         Note: This call will not return until it connects to the
               Blender server.
@@ -236,9 +233,15 @@ class BlenderColorCamera(LeafSystem):
 
         # Intercept load message via mock LCM.
         mock_lcm = DrakeMockLcm()
+        mock_lcm_subscriber = Subscriber(
+            lcm=mock_lcm,
+            channel="DRAKE_VIEWER_LOAD_ROBOT",
+            lcm_type=lcmt_viewer_load_robot)
         DispatchLoadMessage(self._scene_graph, mock_lcm)
-        load_robot_msg = lcmt_viewer_load_robot.decode(
-            mock_lcm.get_last_published_message("DRAKE_VIEWER_LOAD_ROBOT"))
+        mock_lcm.HandleSubscriptions(0)
+        assert mock_lcm_subscriber.count > 0
+        load_robot_msg = mock_lcm_subscriber.message
+
         # Load all the elements over on the Blender side.
         self.num_link_geometries_by_link_name = {}
         self.link_subgeometry_local_tfs_by_link_name = {}
@@ -371,10 +374,11 @@ class BlenderColorCamera(LeafSystem):
                 resolution=[640*2, 480*2],
                 file_format="JPEG")
 
-        env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
-        self.bsi.send_remote_call(
-            "set_environment_map",
-            path=env_map_path)
+        #env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr"
+        #env_map_path = "/home/gizatt/tools/blender_server/data/env_maps/lebombo_4k.hdr"
+        #self.bsi.send_remote_call(
+        #    "set_environment_map",
+        #    path=env_map_path)
 
     def _DoPublish(self, context, event):
         # TODO(russt): Change this to declare a periodic event with a
@@ -471,6 +475,7 @@ class BlenderColorCamera(LeafSystem):
         for i in range(len(self.camera_tfs)):
             out_filepath = self.out_prefix + "%02d_%08d.jpg" % (
                 i, self.current_publish_num)
+            self.last_out_filepath = out_filepath
             im = self.bsi.render_image(
                 "cam_%d" % i, filepath=out_filepath)
             if self.show_figure:

@@ -37,8 +37,7 @@ from pydrake.multibody.tree import (
 
 from pydrake.common import FindResourceOrThrow
 from pydrake.examples.manipulation_station import (
-    ManipulationStation,
-    CreateDefaultYcbObjectList)
+    ManipulationStation)
 from pydrake.manipulation.simple_ui import JointSliders, SchunkWsgButtons
 from pydrake.multibody.inverse_kinematics import InverseKinematics
 from pydrake.multibody.parsing import Parser
@@ -46,8 +45,8 @@ from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
 from pydrake.systems.primitives import FirstOrderLowPassFilter
-from pydrake.util.eigen_geometry import Isometry3
-
+from pydrake.common.eigen_geometry import Isometry3
+from pydrake.solvers.mathematicalprogram import MathematicalProgram, Solve
 from blender_server.drake_blender_visualizer.blender_visualizer import BlenderColorCamera
 
 
@@ -73,10 +72,10 @@ if __name__ == "__main__":
             mass=10.0, p_PScm_E=np.array([0., 0., 0.]),
             G_SP_E=UnitInertia(1.0, 1.0, 1.0)))
         mbp.WeldFrames(world_body.body_frame(), ground_body.body_frame(),
-                       Isometry3())
+                       RigidTransform())
         RegisterVisualAndCollisionGeometry(
             mbp, ground_body,
-            Isometry3(rotation=np.eye(3), translation=[0, 0, -0.5]),
+            RigidTransform(p=[0, 0, -0.5]),
             ground_shape, "ground", np.array([0.5, 0.5, 0.5, 1.]),
             CoulombFriction(0.9, 0.8))
 
@@ -113,14 +112,14 @@ if __name__ == "__main__":
         cam_trans_base = np.array([0.47, -0.54, 0.31])
         cam_tf_base = Isometry3(quaternion=cam_quat_base,
                                 translation=cam_trans_base)
-	# Rotate camera around origin
-	cam_additional_rotation = Isometry3(quaternion=RollPitchYaw(0., 0., np.random.uniform(0., np.pi*2.)).ToQuaternion(),
+        # Rotate camera around origin
+        cam_additional_rotation = Isometry3(quaternion=RollPitchYaw(0., 0., np.random.uniform(0., np.pi*2.)).ToQuaternion(),
                                             translation=[0, 0, 0])
         cam_tf_base = cam_additional_rotation.multiply(cam_tf_base)
         cam_tfs = [cam_tf_base]
 
         offset_quat_base = RollPitchYaw(0., 0., 0.).ToQuaternion().wxyz()
-	os.system("mkdir -p /tmp/ycb_scene_%03d" % scene_k)
+        os.system("mkdir -p /tmp/ycb_scene_%03d" % scene_k)
         blender_cam = builder.AddSystem(BlenderColorCamera(
             scene_graph,
             draw_period=0.03333/2.,
@@ -163,9 +162,9 @@ if __name__ == "__main__":
         prog.SetInitialGuess(q_dec, q0)
         print("Solving")
         print("Initial guess: ", q0)
-        print(prog.Solve())
-        print(prog.GetSolverId().name())
-        q0_proj = prog.GetSolution(q_dec)
+        res = Solve(prog)
+        #print(prog.GetSolverId().name())
+        q0_proj = res.GetSolution(q_dec)
         print("Final: ", q0_proj)
 
         mbp.SetPositions(mbp_context, q0_proj)
