@@ -25,10 +25,25 @@ jpeg).
 - A usage example for [Drake](github.com/RobotLocomotion/drake) (in the `drake_blender_visualizer` folder) that uses the Blender server to render images of a robot simulation scene. (This will eventually be moved out of this repo, but it's convenient to me to keep it here for now. :P)
 
 
+## Setup
+
+If on Linux, run:
+
+    ./setup_bionic.py
+
+It should create:
+- Create a `./build/` directory
+- Download and extract Blender
+- Install necessary extra Python libraries in Blender
+- Download assets for running examples
+- Optionally download Drake (using `--with_drake`)
+- Create `./build/setup.bash` that you should source for using this.
+
+If on another system, you'll want to modify this, or make an alternative setup.
+
 ## Usage + Examples
 
 ### Basic examples
-First, you'll probably want to get some assets. You can use the `data/get_example_assets.sh` to get the assets necessary to run the below examples.
 
 - Using the abstraction layer itself from Blender: launch `render_main_bsm.py` with Blender, using e.g. `run_example_bsh.sh`.
 - Using the Blender server: launch the Blender server with blender, using e.g. `run_blender_server.sh`. Then run `test_blender_server.py` with any Python that has `zmq`, `numpy`, and `imageio`.	
@@ -46,42 +61,6 @@ You can launch the YCB object simulation by using `run_blender_server.sh` in one
 You can launch the ManipulationStation teleop playback example with
 `python demo_manipulation_station_with_bounding_boxes.py --log example_trajectory/teleop_log_manual_final.pickle --log_bbox example_trajectory/ycb_detections_full.yaml`.
 This will dump images in the `/tmp/manipulation_station_ycb` folder. Some convenience scripts for rendering videos are provided in this directory.
-
-## Setup
-
-### Python
-
-Make sure that the folder containing this module is on your PYTHONPATH -- e.g. I put this module in my
-`~/tools` folder, so I do:
-
-```export PYTHONPATH=~/tools:${PYTHONPATH}```
-
-### Blender
-
-This requires Blender >= 2.8 (to use the nice Eevee renderer), and has only
-been tested on Ubuntu 16.04. It probably works on 18.04, it probably works
-on Mac, it might work on Windows... but that's not tested yet.
-
-I recommend downloading Blender from [their website](https://www.blender.org/)
-and installing it locally. (I put it in `~/tools/blender-2.80`.) Make
-an environment variable named `BLENDER_PATH` that points to the blender
-executable by putting this at the end of your `~/.bashrc` (or do something
-equivalent):
-
-```
-export BLENDER_PATH=/home/gizatt/tools/blender-2.80/blender
-```
-
-I don't have a pleasant way of doing this yet, but you'll need to get the
-`zmq` and `attrs` libraries working in Blender. I'll try to make this easier /
-document how to do this in the future, but how I did it was approximately:
-
-1) Make a conda environment with Python 3.7.
-2) conda install attrs && pip install zmq
-3) Copy "attr*" (not "attrs*"!) and "zmq*" and "pyzmq*" from the environment's `site-packages` folder to `blender-2.80/2.80/python/lib/python3.7/site-packages/`.
-4) Copy "libsodium*" and "libzmq*" from the environment's `lib` folder to `blender-2.80/2.80/python/lib`. This was necessary, I think, because I had other versions of those libraries in my system somewhere that were conflicting, so I needed to give Blender the right version with higher priority.
-
-
 
 ## Schematic Flow for Rendering a Simple Scene
 
