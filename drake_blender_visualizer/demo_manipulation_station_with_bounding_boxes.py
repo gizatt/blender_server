@@ -29,7 +29,7 @@ from pydrake.multibody.plant import ContactResults
 from pydrake.common import FindResourceOrThrow
 from pydrake.examples.manipulation_station import (
     ManipulationStation,
-    CreateDefaultYcbObjectList)
+    CreateManipulationClassYcbObjectList)
 from pydrake.manipulation.simple_ui import JointSliders, SchunkWsgButtons
 from pydrake.multibody.parsing import Parser
 from pydrake.systems.framework import DiagramBuilder
@@ -38,7 +38,7 @@ from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
 from pydrake.systems.primitives import (
     FirstOrderLowPassFilter, TrajectorySource)
 from pydrake.trajectories import PiecewisePolynomial
-from pydrake.util.eigen_geometry import Isometry3
+from pydrake.common.eigen_geometry import Isometry3
 
 
 from blender_server.drake_blender_visualizer.blender_visualizer import (
@@ -54,12 +54,12 @@ class BoundingBoxBundleYamlSource(LeafSystem):
         self.iter = 0
         self.set_name('ycb yaml log bbox publisher')
         self.publish_period = publish_period
-        self._DeclarePeriodicPublish(self.publish_period, 0.0)
+        self.DeclarePeriodicPublish(self.publish_period, 0.0)
 
         self.bbox_bundle_output_port = \
-            self._DeclareAbstractOutputPort(
-                self._DoAllocBboxBundle,
-                self._DoCalcAbstractOutput)
+            self.DeclareAbstractOutputPort(
+                self.DoAllocBboxBundle,
+                self.DoCalcAbstractOutput)
 
         # Load in log and prepare ordered list of the bundles
         # across time
@@ -93,10 +93,10 @@ class BoundingBoxBundleYamlSource(LeafSystem):
         self.bbox_bundle_times = np.array(self.bbox_bundle_times)
         self.bbox_bundle_durations = np.array(self.bbox_bundle_durations)
 
-    def _DoAllocBboxBundle(self):
+    def DoAllocBboxBundle(self):
         return AbstractValue.Make(BoundingBoxBundle)
 
-    def _DoCalcAbstractOutput(self, context, y_data):
+    def DoCalcAbstractOutput(self, context, y_data):
         t = context.get_time()
 
         fade_time = 0.5
@@ -195,8 +195,8 @@ if __name__ == "__main__":
 
     # Create the ManipulationStation.
     station = builder.AddSystem(ManipulationStation())
-    station.SetupDefaultStation()
-    ycb_objects = CreateYcbObjectClutter()
+    station.SetupManipulationClassStation()
+    ycb_objects = CreateManipulationClassYcbObjectList()
     for model_file, X_WObject in ycb_objects:
         station.AddManipulandFromFile(model_file, X_WObject)
     station.Finalize()

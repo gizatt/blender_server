@@ -35,6 +35,7 @@ from pydrake.multibody.tree import (
     BodyIndex
 )
 
+from pydrake import getDrakePath
 from pydrake.common import FindResourceOrThrow
 from pydrake.examples.manipulation_station import (
     ManipulationStation)
@@ -80,8 +81,7 @@ if __name__ == "__main__":
             CoulombFriction(0.9, 0.8))
 
         ycb_object_dir = os.path.join(
-            os.getenv('DRAKE_RESOURCE_ROOT'),
-            "build/install/share/drake/manipulation/models/ycb/sdf/")
+            getDrakePath(), "manipulation/models/ycb/sdf/")
         ycb_object_sdfs = os.listdir(ycb_object_dir)
         ycb_object_sdfs = [os.path.join(ycb_object_dir, path)
                            for path in ycb_object_sdfs]
@@ -97,7 +97,7 @@ if __name__ == "__main__":
                 model_name="obj_ycb_%03d" % k)
             obj_ids.append(k+2)
 
-        mbp.AddForceElement(UniformGravityFieldElement())
+        # mbp.AddForceElement(UniformGravityFieldElement())
         mbp.Finalize()
 
         #meshcat = builder.AddSystem(
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         simulator.set_publish_every_time_step(False)
         simulator.set_target_realtime_rate(1.0)
         try:
-            simulator.StepTo(2.0)
+            simulator.AdvanceTo(2.0)
         except Exception as e:
             print("Exception in sim: ", e)
             scene_k -= 1
