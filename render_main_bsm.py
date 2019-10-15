@@ -8,7 +8,7 @@ import blender_scripts.blender_scene_management as bsm
 if __name__ == '__main__':
     bsm.initialize_scene()
 
-    metal26_path = "./data/test_pbr_mats/Metal26/Metal26"
+    metal26_path = "./data/test_pbr_mats/Metal09/Metal09"
     bsm.register_material("metal26",
                           material_type="CC0_texture",
                           path=metal26_path)
