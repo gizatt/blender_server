@@ -88,17 +88,17 @@ class BoundingBoxBundleTestSource(LeafSystem):
 
         self.iter = 0
         self.set_name('dummy bbox publisher')
-        self._DeclarePeriodicPublish(0.03333, 0.0)
+        self.DeclarePeriodicPublish(0.03333, 0.0)
 
         self.bbox_bundle_output_port = \
-            self._DeclareAbstractOutputPort(
-                self._DoAllocBboxBundle,
-                self._DoCalcAbstractOutput)
+            self.DeclareAbstractOutputPort(
+                self.DoAllocBboxBundle,
+                self.DoCalcAbstractOutput)
 
-    def _DoAllocBboxBundle(self):
+    def DoAllocBboxBundle(self):
         return AbstractValue.Make(BoundingBoxBundle)
 
-    def _DoCalcAbstractOutput(self, context, y_data):
+    def DoCalcAbstractOutput(self, context, y_data):
         bbox_bundle = BoundingBoxBundle(2)
         bbox_bundle.set_bbox_attributes(
             0, scale=[0.1, 0.15, 0.2],
@@ -157,16 +157,16 @@ class BlenderColorCamera(LeafSystem):
             self.out_prefix = "/tmp/drake_blender_vis_"
         self.current_publish_num = 0
         self.set_name('blender_color_camera')
-        self._DeclarePeriodicPublish(draw_period, 0.0)
+        self.DeclarePeriodicPublish(draw_period, 0.0)
         self.draw_period = draw_period
 
         # Pose bundle (from SceneGraph) input port.
-        self._DeclareAbstractInputPort(
+        self.DeclareAbstractInputPort(
             "lcm_visualization",
             AbstractValue.Make(PoseBundle(0)))
 
         # Optional pose bundle of bounding boxes.
-        self._DeclareAbstractInputPort(
+        self.DeclareAbstractInputPort(
             "bounding_box_bundle",
             AbstractValue.Make(BoundingBoxBundle(0)))
 
@@ -190,7 +190,7 @@ class BlenderColorCamera(LeafSystem):
         def on_initialize(context, event):
             self.load()
 
-        self._DeclareInitializationEvent(
+        self.DeclareInitializationEvent(
             event=PublishEvent(
                 trigger_type=TriggerType.kInitialization,
                 callback=on_initialize))
@@ -380,10 +380,10 @@ class BlenderColorCamera(LeafSystem):
         #    "set_environment_map",
         #    path=env_map_path)
 
-    def _DoPublish(self, context, event):
+    def DoPublish(self, context, event):
         # TODO(russt): Change this to declare a periodic event with a
         # callback instead of overriding _DoPublish, pending #9992.
-        LeafSystem._DoPublish(self, context, event)
+        LeafSystem.DoPublish(self, context, event)
 
         pose_bundle = self.EvalAbstractInput(context, 0).get_value()
         bbox_bundle = self.EvalAbstractInput(context, 1)
