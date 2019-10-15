@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #Copyright 2015 Yale University - Grablab
 #Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\
 #The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
@@ -7,8 +7,7 @@
 import os
 import sys
 import json
-import urllib
-import urllib2
+import urllib.request
 
 output_directory = "./test_objs/ycb"
 
@@ -37,21 +36,20 @@ extract = True
 base_url = "http://ycb-benchmarks.s3-website-us-east-1.amazonaws.com/data/"
 objects_url = base_url + "objects.json"
 
-if not os.path.exists(output_directory):
-    os.makedirs(output_directory)
+os.makedirs(output_directory, exist_ok=True)
 
 def fetch_objects(url):
-    response = urllib2.urlopen(url)
+    response = urllib.request.urlopen(url)
     html = response.read()
     objects = json.loads(html)
     return objects["objects"]
 
 def download_file(url, filename):
-    u = urllib2.urlopen(url)
+    u = urllib.request.urlopen(url)
     f = open(filename, 'wb')
     meta = u.info()
-    file_size = int(meta.getheaders("Content-Length")[0])
-    print "Downloading: %s (%s MB)" % (filename, file_size/1000000.0)
+    file_size = int(meta["Content-Length"])
+    print("Downloading: %s (%s MB)" % (filename, file_size/1000000.0))
 
     file_size_dl = 0
     block_sz = 65536
@@ -64,7 +62,7 @@ def download_file(url, filename):
         f.write(buffer)
         status = r"%10d  [%3.2f%%]" % (file_size_dl/1000000.0, file_size_dl * 100. / file_size)
         status = status + chr(8)*(len(status)+1)
-        print status,
+        print(status, end="", flush=True)
     f.close()
 
 def tgz_url(object, type):
@@ -82,16 +80,15 @@ def extract_tgz(filename, dir):
 
 def check_url(url):
     try:
-        request = urllib2.Request(url)
+        request = urllib.request.Request(url)
         request.get_method = lambda : 'HEAD'
-        response = urllib2.urlopen(request)
+        response = urllib.request.urlopen(request)
         return True
     except Exception as e:
         return False
 
 
-if __name__ == "__main__":
-
+def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     if not os.path.isdir(output_directory):
         os.makedirs(output_directory)
@@ -109,3 +106,7 @@ if __name__ == "__main__":
                 download_file(url, filename)
                 if extract:
                     extract_tgz(filename, output_directory)
+
+
+if __name__ == "__main__":
+    main()
