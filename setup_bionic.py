@@ -10,6 +10,7 @@ from textwrap import dedent
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--with_drake", action="store_true")
+    parser.add_argument("--with_jupyter", action="store_true")
     args = parser.parse_args()
 
     cur_dir = dirname(abspath(__file__))
@@ -60,6 +61,7 @@ def main():
         f.write(dedent(f"""\
         export PATH={dirname(blender_bin)}:{dirname(py_bin)}:${{PATH}}
         export PYTHONPATH={dirname(cur_dir)}:${{PYTHON_PATH}}
+        export JUPYTER_PATH={build_dir}
         """))
         if args.with_drake:
             f.write(dedent(f"""\
@@ -69,12 +71,54 @@ def main():
     if not isdir(join(cur_dir, "data/test_objs")):
         check_call([join(cur_dir, "data/get_example_assets.sh")])
 
+    kernel_dir = join(build_dir, "kernels", "blender_python3")
+    with_jupyter = (args.with_jupyter or isdir(kernel_dir))
+    if with_jupyter:
+        check_call([
+            py_bin, "-m", "pip", "install",
+            "jupyter",
+            # For whatever reason, Blender's NumPy isn't picked up by PIP.
+            # Reinstall the exact same version.
+            "numpy==1.15.0",
+            # For plottig in notebooks.
+            "matplotlib",
+            # For visualizing images.
+            "Pillow",
+        ])
+        os.makedirs(kernel_dir, exist_ok=True)
+        with open(join(kernel_dir, "kernel.json"), "w") as f:
+            # To retrieve pixels from image data.
+            with_window = '"--window-geometry", "100", "100", "200", "200"'
+            # Otherwise.
+            without_window = '"--background"'
+            # "-b",  # Need foreground for rendering...
+            f.write(dedent(f"""\
+            {{
+             "argv": [
+              "blender",
+              {without_window},
+              "--python",
+              "{cur_dir}/blender_ipykernel_launcher.py",
+              "--",
+              "-f",
+              "{{connection_file}}"
+             ],
+             "display_name": "Blender Python 3",
+             "language": "python"
+            }}
+            """))
+
     print(dedent(f"""\
 
     To use blender_server functionality:
 
         source ./build/setup.bash
     """))
+    if with_jupyter:
+        print(dedent(f"""\
+        To use notebooks, run `jupyter notebook` (which will be shadowed), and
+        ensure your notebook uses the "Blender Python 3" kernel.
+        """))
 
 
 if __name__ == "__main__":
