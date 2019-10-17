@@ -220,7 +220,7 @@ def configure_rendering(camera_name,
             camera_name=camera_name)
 
     if file_format is not None:
-        bpy.context.scene.render.image_settings.file_format='JPEG'
+        bpy.context.scene.render.image_settings.file_format = file_format
 
     if filepath is not None:
         bpy.context.scene.render.filepath = filepath
@@ -238,7 +238,8 @@ def render_and_return_image_bytes(camera_name, filepath=None):
     bpy.context.scene.camera = bpy.context.scene.objects[camera_name]
     
     if filepath is None:
-        output_file = "/tmp/blender_server_%d.jpg" % (time.time() * 1000 * 1000)
+        fmt = bpy.context.scene.render.image_settings.file_format.lower()
+        output_file = "/tmp/blender_server_%d.%s" % (time.time() * 1000 * 1000, fmt)
     else:
         output_file = filepath
     old_filepath = bpy.context.scene.render.filepath
