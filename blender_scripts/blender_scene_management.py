@@ -244,15 +244,22 @@ def register_camera(name,
         cam.rotation_quaternion = quaternion
     if angle is not None:
         cam.data.angle = angle
-
+        
 
 def configure_rendering(camera_name,
                         resolution=None,
                         file_format=None,
                         filepath=None,
                         configure_for_masks=False,
-                        taa_render_samples=None):
-    renderer_config = renderer_option.EeveeRendererOption()
+                        taa_render_samples=None,
+                        cycles=False):
+    if configure_for_masks:
+        cycles = False
+    if cycles:
+        renderer_config = renderer_option.CyclesRendererOption()
+    else:
+        renderer_config = renderer_option.EeveeRendererOption()
+
 
     if resolution is not None:
         resolution_x, resolution_y = resolution
@@ -275,9 +282,12 @@ def configure_rendering(camera_name,
         bpy.data.scenes["Scene"].display_settings.display_device = "sRGB"
         bpy.data.scenes["Scene"].sequencer_colorspace_settings.name = "Linear"
 
-
-    renderer_option.setup_and_use_eevee(
-        renderer_config, camera_name=camera_name)
+    if cycles:
+        renderer_option.setup_and_use_cycles(
+            renderer_config, camera_name=camera_name)
+    else:
+        renderer_option.setup_and_use_eevee(
+            renderer_config, camera_name=camera_name)
 
     if file_format is not None:
         bpy.context.scene.render.image_settings.file_format = file_format
