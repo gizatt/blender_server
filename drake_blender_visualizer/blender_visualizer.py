@@ -124,7 +124,8 @@ class BlenderLabelCamera(LeafSystem):
                  camera_tfs=[Isometry3()],
                  global_transform=Isometry3(),
                  out_prefix=None,
-                 show_figure=False):
+                 show_figure=False,
+                 save_scene=False):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -156,8 +157,9 @@ class BlenderLabelCamera(LeafSystem):
             self.out_prefix = "/tmp/drake_blender_vis_labels_"
         self.current_publish_num = 0
         self.set_name('blender_label_camera')
-        self._DeclarePeriodicPublish(draw_period, 0.0)
+        self._DeclarePeriodicPublish(draw_period, 0.)
         self.draw_period = draw_period
+        self.save_scene = save_scene
 
         # Pose bundle (from SceneGraph) input port.
         self._DeclareAbstractInputPort(
@@ -215,9 +217,15 @@ class BlenderLabelCamera(LeafSystem):
 
         # Intercept load message via mock LCM.
         mock_lcm = DrakeMockLcm()
+        mock_lcm_subscriber = Subscriber(
+            lcm=mock_lcm,
+            channel="DRAKE_VIEWER_LOAD_ROBOT",
+            lcm_type=lcmt_viewer_load_robot)
         DispatchLoadMessage(self._scene_graph, mock_lcm)
-        load_robot_msg = lcmt_viewer_load_robot.decode(
-            mock_lcm.get_last_published_message("DRAKE_VIEWER_LOAD_ROBOT"))
+        mock_lcm.HandleSubscriptions(0)
+        assert mock_lcm_subscriber.count > 0
+        load_robot_msg = mock_lcm_subscriber.message
+
         # Load all the elements over on the Blender side.
         self.num_link_geometries_by_link_name = {}
         self.link_subgeometry_local_tfs_by_link_name = {}
@@ -318,7 +326,7 @@ class BlenderLabelCamera(LeafSystem):
                 name="cam_%d" % i,
                 location=camera_tf_post.translation().tolist(),
                 quaternion=camera_tf_post.quaternion().wxyz().tolist(),
-                angle=90)
+                angle=np.pi/2.)
 
             self.bsi.send_remote_call(
                 "configure_rendering",
@@ -326,7 +334,8 @@ class BlenderLabelCamera(LeafSystem):
                 resolution=[640, 480],
                 file_format="BMP",
                 configure_for_masks=True,
-                taa_render_samples=1)
+                taa_render_samples=10,
+                cycles=False)
 
         self.bsi.send_remote_call(
             "set_environment_map",
@@ -336,6 +345,9 @@ class BlenderLabelCamera(LeafSystem):
         # TODO(russt): Change this to declare a periodic event with a
         # callback instead of overriding _DoPublish, pending #9992.
         LeafSystem._DoPublish(self, context, event)
+
+        if context.get_time() <= 1E-3:
+            return
 
         pose_bundle = self.EvalAbstractInput(context, 0).get_value()
 
@@ -371,11 +383,10 @@ class BlenderLabelCamera(LeafSystem):
                 plt.subplot(1, n_cams, i+1)
                 plt.imshow(np.transpose(im, [1, 0, 2]))
 
-        if self.current_publish_num == 0:
+        if self.save_scene:
             scene_filepath = self.out_prefix + "_scene.blend"
             self.bsi.send_remote_call(
                 "save_current_scene", path=scene_filepath)
-            self.published_scene = True
         self.current_publish_num += 1
 
         if self.show_figure:
@@ -400,7 +411,8 @@ class BlenderColorCamera(LeafSystem):
                  global_transform=RigidTransform(),
                  env_map_path=None,
                  out_prefix=None,
-                 show_figure=False):
+                 show_figure=False,
+                 save_scene=False):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -432,8 +444,9 @@ class BlenderColorCamera(LeafSystem):
             self.out_prefix = "/tmp/drake_blender_vis_"
         self.current_publish_num = 0
         self.set_name('blender_color_camera')
-        self.DeclarePeriodicPublish(draw_period, 0.0)
+        self.DeclarePeriodicPublish(draw_period, 0.)
         self.draw_period = draw_period
+        self.save_scene = save_scene
 
         # Pose bundle (from SceneGraph) input port.
         self.DeclareAbstractInputPort(
@@ -643,13 +656,15 @@ class BlenderColorCamera(LeafSystem):
                 name="cam_%d" % i,
                 location=camera_tf_post.translation().tolist(),
                 quaternion=camera_tf_post.quaternion().wxyz().tolist(),
-                angle=90)
+                angle=np.pi/2.)
 
             self.bsi.send_remote_call(
                 "configure_rendering",
                 camera_name='cam_%d' % i,
                 resolution=[640, 480],
-                file_format="JPEG")
+                file_format="JPEG",
+                taa_render_samples=20,
+                cycles=False)
 
         if self.env_map_path:
             self.bsi.send_remote_call(
@@ -660,6 +675,9 @@ class BlenderColorCamera(LeafSystem):
         # TODO(russt): Change this to declare a periodic event with a
         # callback instead of overriding _DoPublish, pending #9992.
         LeafSystem.DoPublish(self, context, event)
+
+        if context.get_time() <= 1E-3:
+            return
 
         pose_bundle = self.EvalAbstractInput(context, 0).get_value()
         bbox_bundle = self.EvalAbstractInput(context, 1)
@@ -758,11 +776,10 @@ class BlenderColorCamera(LeafSystem):
                 plt.subplot(1, n_cams, i+1)
                 plt.imshow(np.transpose(im, [1, 0, 2]))
 
-        if self.current_publish_num == 0:
+        if self.save_scene:
             scene_filepath = self.out_prefix + "_scene.blend"
             self.bsi.send_remote_call(
                 "save_current_scene", path=scene_filepath)
-            self.published_scene = True
         self.current_publish_num += 1
 
         if self.show_figure:
