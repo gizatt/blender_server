@@ -3,24 +3,24 @@ import numpy as np
 import os
 import time
 
-import blender_scripts.object_manip as object_manip
 import blender_scripts.utils as blender_utils
-import blender_scripts.lighting_utils as lighting_utils
-import blender_scripts.camera_utils as camera_utils
-import blender_scripts.texture_utils as texture_utils
 import blender_scripts.renderer_option as renderer_option
-import blender_scripts.physics_utils as physics_utils
 
 loaded_environment_nodes = {}
 def initialize_scene():
+    print("\n\n**************Before init: ")
+    bpy.ops.wm.memory_statistics()
+    global loaded_environment_nodes
+    loaded_environment_nodes = {}
     bpy.ops.wm.read_homefile(use_empty=True)
+    print("**************After init: ")
+    bpy.ops.wm.memory_statistics()
+
     # Add a world
     bpy.ops.world.new()
     bpy.context.scene.world = bpy.data.worlds[0]
     # Default background color: flat black
     bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = [0, 0, 0, 1.]
-    global loaded_environment_nodes
-    loaded_environment_nodes = {}
 
 def populate_image_node_from_file(nodes, path):
     image = bpy.data.images.load(path, check_existing=True)
@@ -150,7 +150,11 @@ def register_object(name, type,
             assert(isinstance(scale, float))
             obj.scale = [scale]*3
     if material is not None:
-        obj.active_material = bpy.data.materials[material]
+        #obj.active_material = bpy.data.materials[material]
+        if obj.data.materials:
+            obj.data.materials[0] = bpy.data.materials[material]
+        else:
+            obj.data.materials.append(bpy.data.materials[material])
     for key, value in kwargs.items():
         setattr(obj, key, value)
 
@@ -221,7 +225,7 @@ def set_environment_map(path):
 
     if path not in loaded_environment_nodes.keys():
         enode = nodes.new("ShaderNodeTexEnvironment")
-        enode.image = bpy.data.images.load(path)
+        enode.image = bpy.data.images.load(path, check_existing=True)
         loaded_environment_nodes[path] = enode
 
     links.new(loaded_environment_nodes[path].outputs['Color'],
@@ -302,9 +306,14 @@ def save_current_scene(path):
     blender_utils.save_current_scene(path)
 
 
-def render(camera_name, write_still=True):
+def render(camera_name, write_still=True, filepath=None):
+    if filepath is not None:
+        old_filepath = bpy.context.scene.render.filepath
+        bpy.context.scene.render.filepath = filepath
     bpy.context.scene.camera = bpy.context.scene.objects[camera_name]
     bpy.ops.render.render(use_viewport=False, write_still=write_still)
+    if filepath is not None:
+        bpy.context.scene.render.filepath = old_filepath
 
 
 def render_and_return_image_bytes(camera_name, filepath=None):
@@ -320,4 +329,6 @@ def render_and_return_image_bytes(camera_name, filepath=None):
     bpy.ops.render.render(use_viewport=False, write_still=True)
     bpy.context.scene.render.filepath = old_filepath
 
-    return open(output_file, 'rb').read()
+    with open(output_file, 'rb') as f:
+        output_stuff = f.read()
+    return output_stuff

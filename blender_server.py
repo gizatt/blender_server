@@ -53,6 +53,8 @@ if __name__ == '__main__':
             else:
                 socket.send(b"Success")
 
+        except zmq.ZMQError:
+            pass
         except Exception as e:
             print("Unhandled exception from server: ", e)
             socket.send(b"Failure: " + str(e).encode('ascii'))

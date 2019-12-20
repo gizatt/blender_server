@@ -664,7 +664,7 @@ class BlenderColorCamera(LeafSystem):
                 resolution=[640, 480],
                 file_format="JPEG",
                 taa_render_samples=20,
-                cycles=False)
+                cycles=True)
 
         if self.env_map_path:
             self.bsi.send_remote_call(
@@ -770,12 +770,9 @@ class BlenderColorCamera(LeafSystem):
             out_filepath = self.out_prefix + "%02d_%08d.jpg" % (
                 i, self.current_publish_num)
             self.last_out_filepath = out_filepath
-            im = self.bsi.render_image(
-                "cam_%d" % i, filepath=out_filepath)
-            if self.show_figure:
-                plt.subplot(1, n_cams, i+1)
-                plt.imshow(np.transpose(im, [1, 0, 2]))
-
+            self.bsi.send_remote_call(
+                "render", camera_name="cam_%d" % i, filepath=out_filepath)
+            
         if self.save_scene:
             scene_filepath = self.out_prefix + "_scene.blend"
             self.bsi.send_remote_call(
