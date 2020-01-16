@@ -81,10 +81,19 @@ def register_material(name, material_type, path=None, color=None):
                 print("Using path %s" % texture_full_path)
                 texture_image_node = populate_image_node_from_file(
                     nodes, texture_full_path)
-                links.new(mat_node.inputs[input_name],
-                          texture_image_node.outputs['Color'])
                 links.new(texture_image_node.inputs['Vector'],
                           uvmap_node.outputs['UV'])
+                if input_name is "Normal":
+                    # Needs to be remapped into tangent space
+                    nmap_node = nodes.new(type='ShaderNodeNormalMap')
+                    texture_image_node.image.colorspace_settings.name = 'Non-Color'
+                    links.new(mat_node.inputs[input_name],
+                              nmap_node.outputs['Normal'])
+                    links.new(nmap_node.inputs['Color'],
+                              texture_image_node.outputs['Color'])
+                else:
+                    links.new(mat_node.inputs[input_name],
+                              texture_image_node.outputs['Color'])
         
             else:
                 print("Not using path %s" % texture_full_path)
