@@ -31,8 +31,9 @@ def main():
     assert isdir(blender_dir)
 
     py_dir = join(blender_dir, "2.82/python")
-    py_bin = join(py_dir, "bin/python3.7m")
-    check_call([py_bin, "-m", "ensurepip"])
+#    py_bin = join(py_dir, "bin/python3.7m")
+    py_bin = join(py_dir, "/bin/python3.8")
+#    check_call([py_bin, "-m", "ensurepip"])
     check_call([py_bin, "-m", "pip", "install", "attrs", "zmq"])
 
     blender_bin = join(blender_dir, "blender")
