@@ -1,17 +1,19 @@
 import attr
 import bpy
 from blender_scripts.utils import is_old_api
-from blender_scripts.object_manip import get_bpyobj_by_name
 
 
-def remove_from_renderer(obj_name_key: str):
-    obj = get_bpyobj_by_name(obj_name_key)
-    obj.hide_render = True
-
-
-def add_to_renderer(obj_name_key: str):
-    obj = get_bpyobj_by_name(obj_name_key)
-    obj.hide_render = False
+def get_bpyobj_by_name(name_key: str):
+    """
+    Using the name key to retrieve the object
+    :param name_key: The key assigned using import_obj_model
+    :return: bpy.data.objects[name_key]
+    """
+    obj_collect = bpy.context.scene.objects
+    if name_key in obj_collect:
+        return obj_collect[name_key]
+    else:
+        sys.exit(-1)
 
 
 @attr.s
