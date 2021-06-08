@@ -45,7 +45,6 @@ from pydrake.systems.meshcat_visualizer import MeshcatVisualizer
 from pydrake.systems.primitives import (
     FirstOrderLowPassFilter, TrajectorySource)
 from pydrake.trajectories import PiecewisePolynomial
-from pydrake.common.eigen_geometry import Isometry3
 
 
 from blender_server.blender_server_interface.blender_server_interface import (
@@ -72,13 +71,13 @@ class BoundingBoxBundle(object):
         new = BoundingBoxBundle(self.num_bboxes)
         new.scales = deepcopy(self.scales)
         new.colors = deepcopy(self.colors)
-        new.poses = [Isometry3(tf) for tf in self.poses]
+        new.poses = [RigidTransform(tf) for tf in self.poses]
         return new
 
     def reset(self, num_bboxes):
         self.num_bboxes = num_bboxes
         self.scales = [[1., 1., 1] for n in range(num_bboxes)]
-        self.poses = [Isometry3() for n in range(num_bboxes)]
+        self.poses = [RigidTransform() for n in range(num_bboxes)]
         self.colors = [[1., 1., 1., 1.] for n in range(num_bboxes)]
 
     def set_bbox_attributes(
@@ -124,11 +123,11 @@ class BoundingBoxBundleTestSource(LeafSystem):
         bbox_bundle = BoundingBoxBundle(2)
         bbox_bundle.set_bbox_attributes(
             0, scale=[0.1, 0.15, 0.2],
-            pose=RigidTransform(p=[0.5, 0., 0.1]).GetAsIsometry3(),
+            pose=RigidTransform(p=[0.5, 0., 0.1]),
             color=[1., 0., 0., 1.])
         bbox_bundle.set_bbox_attributes(
             1, scale=[0.05, 0.05, 0.05],
-            pose=RigidTransform(p=[0.4, 0.1, 0.1]).GetAsIsometry3(),
+            pose=RigidTransform(p=[0.4, 0.1, 0.1]),
             color=[0., 1., 1., 1.])
         y_data.set_value(bbox_bundle)
 
@@ -143,8 +142,8 @@ class BlenderLabelCamera(LeafSystem):
                  scene_graph,
                  zmq_url="default",
                  draw_period=0.033333,
-                 camera_tfs=[Isometry3()],
-                 global_transform=Isometry3(),
+                 camera_tfs=[RigidTransform()],
+                 global_transform=RigidTransform(),
                  out_prefix=None,
                  show_figure=False,
                  save_scene=False):
@@ -161,8 +160,8 @@ class BlenderLabelCamera(LeafSystem):
                 will be opened (the url will also be printed to the console).
                 Use e.g. zmq_url="tcp://127.0.0.1:5556" to specify a
                 specific address.
-            camera tfs: List of Isometry3 camera tfs.
-            global transform: Isometry3 that gets premultiplied to every object.
+            camera tfs: List of RigidTransform camera tfs.
+            global transform: RigidTransform that gets premultiplied to every object.
 
         Note: This call will not return until it connects to the
               Blender server.
@@ -179,12 +178,12 @@ class BlenderLabelCamera(LeafSystem):
             self.out_prefix = "/tmp/drake_blender_vis_labels_"
         self.current_publish_num = 0
         self.set_name('blender_label_camera')
-        self._DeclarePeriodicPublish(draw_period, 0.)
+        self.DeclarePeriodicPublish(draw_period, 0.)
         self.draw_period = draw_period
         self.save_scene = save_scene
 
         # Pose bundle (from SceneGraph) input port.
-        self._DeclareAbstractInputPort(
+        self.DeclareAbstractInputPort(
             "lcm_visualization",
             AbstractValue.Make(PoseBundle(0)))
 
@@ -205,7 +204,7 @@ class BlenderLabelCamera(LeafSystem):
         def on_initialize(context, event):
             self.load()
 
-        self._DeclareInitializationEvent(
+        self.DeclareInitializationEvent(
             event=PublishEvent(
                 trigger_type=TriggerType.kInitialization,
                 callback=on_initialize))
@@ -347,7 +346,7 @@ class BlenderLabelCamera(LeafSystem):
                 "register_camera",
                 name="cam_%d" % i,
                 location=camera_tf_post.translation().tolist(),
-                quaternion=camera_tf_post.quaternion().wxyz().tolist(),
+                quaternion=camera_tf_post.rotation().ToQuaternion().wxyz().tolist(),
                 angle=np.pi/2.)
 
             self.bsi.send_remote_call(
@@ -380,14 +379,14 @@ class BlenderLabelCamera(LeafSystem):
             # pose_matrix = pose_bundle.get_pose(frame_i)
             pose_matrix = pose_bundle.get_transorm(frame_i)
             for j in range(self.num_link_geometries_by_link_name[link_name]):
-                offset = Isometry3(
-                    self.global_transform.matrix().dot(
+                offset = RigidTransform(
+                    self.global_transform.GetAsMatrix4().dot(
                         # pose_matrix.matrix().dot(
                         pose_matrix.GetAsMatrix4().dot(
                             self.link_subgeometry_local_tfs_by_link_name[
                                 link_name][j])))
                 location = offset.translation()
-                quaternion = offset.quaternion().wxyz()
+                quaternion = offset.rotation().ToQuaternion()
                 geom_name = self._format_geom_name(
                     source_name, frame_name, model_id, j)
                 self.bsi.send_remote_call(
@@ -700,7 +699,7 @@ class BlenderColorCamera(LeafSystem):
                 "register_camera",
                 name="cam_%d" % i,
                 location=camera_tf_post.translation().tolist(),
-                quaternion=camera_tf_post.quaternion().wxyz().tolist(),
+                quaternion=camera_tf_post.rotation().ToQuaternion().wxyz().tolist(),
                 angle=np.pi/2.)
 
             self.bsi.send_remote_call(
@@ -718,6 +717,7 @@ class BlenderColorCamera(LeafSystem):
                 "set_environment_map",
                 path=self.env_map_path)
 
+        print("done loading env map")
 
     def load1(self):
         """
@@ -905,6 +905,7 @@ class BlenderColorCamera(LeafSystem):
         # callback instead of overriding _DoPublish, pending #9992.
         LeafSystem.DoPublish(self, context, event)
 
+        print("In publish at time ", context.get_time())
         if context.get_time() <= 1E-3:
             return
 
@@ -961,8 +962,7 @@ class BlenderColorCamera(LeafSystem):
                             scale=[x/2 for x in bbox_bundle.get_bbox_scale(k)],
                             location=pose.translation().tolist(),
                             rotation_mode='QUATERNION',
-                            rotation_quaternion=pose.quaternion().
-                            wxyz().tolist(),
+                            rotation_quaternion=pose.rotation().ToQuaternion().wxyz().tolist(),
                             hide_render=False)
                     self.num_visible_bounding_boxes = k + 1
             for k in range(bbox_bundle.get_num_bboxes(),
@@ -981,14 +981,16 @@ class BlenderColorCamera(LeafSystem):
             # pose_matrix = pose_bundle.get_pose(frame_i)
             pose_matrix = pose_bundle.get_transform(frame_i)
             for j in range(self.num_link_geometries_by_link_name[link_name]):
-                offset = Isometry3(
-                    self.global_transform.matrix().dot(
+                # I am sure this can be written shorter than this, this bloat is from
+                # when this was isometry-based.
+                offset = RigidTransform(
+                    self.global_transform.GetAsMatrix4().dot(
                         # pose_matrix.matrix().dot(
                         pose_matrix.GetAsMatrix4().dot(
                             self.link_subgeometry_local_tfs_by_link_name[
                                 link_name][j])))
                 location = offset.translation()
-                quaternion = offset.quaternion().wxyz()
+                quaternion = offset.rotation().ToQuaternion().wxyz()
                 geom_name = self._format_geom_name(
                     source_name, frame_name, j)
                 self.bsi.send_remote_call(

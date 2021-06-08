@@ -1,5 +1,8 @@
 """
 Visualizes SceneGraph state using Blender Server.
+
+TODO(gizatt): Make this work with modern Drake again. This probably
+works with Drake from summer 2020.
 """
 from __future__ import print_function
 import argparse
