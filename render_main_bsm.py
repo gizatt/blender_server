@@ -1,6 +1,7 @@
 import bpy
 import numpy as np
 import os
+import random
 import sys
 
 import blender_scripts.blender_scene_management as bsm
@@ -18,6 +19,24 @@ if __name__ == '__main__':
                         location=[0, 0, -0.45],
                         scale=[1.0, 1.0, 0.25],
                         material="metal26")
+
+    bsm.register_material("pink",
+                          material_type="color",
+                          color=[1.0, 0.047, 0.172, 1.0])
+    bsm.register_object("obj_pink_box",
+                        type="cube",
+                        location=[0, 0, 0.],
+                        scale=[0.05, 0.05, 0.05],
+                        material="pink")
+
+    bsm.register_material("emission_pink",
+                          material_type="emission",
+                          color=[1.0, 0.047, 0.172, 1.0])
+    bsm.register_object("obj_emission_pink_box",
+                        type="cube",
+                        location=[0.15, 0, 0.],
+                        scale=[0.05, 0.05, 0.05],
+                        material="emission_pink")
 
 
     object_classes = [
@@ -48,10 +67,11 @@ if __name__ == '__main__':
                             resolution=[1920, 1200],
                             file_format="JPEG")
 
-    env_map_path = "./data/env_maps/aerodynamics_workshop_4k.hdr"
-    bsm.set_environment_map(path=env_map_path)
-
-    bsm.save_current_scene('./out/save.blend')
+    possible_env_maps = [
+        None,
+        "./data/env_maps/aerodynamics_workshop_4k.hdr",
+        "./data/env_maps/skybox_texture.jpg"
+    ]
 
     for i in range(10):
         for obj_tmp in objs:
@@ -65,6 +85,9 @@ if __name__ == '__main__':
                 location=loc,
                 rotation_mode='QUATERNION',
                 rotation_quaternion=quat)
+
+        bsm.set_environment_map(path=random.choice(possible_env_maps))
+        bsm.save_current_scene('./out/save_%d.blend' % i)
 
         bsm.configure_rendering(
             camera_name='cam_1', 

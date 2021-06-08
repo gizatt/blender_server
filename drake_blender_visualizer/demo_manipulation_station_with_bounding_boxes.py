@@ -1,5 +1,8 @@
 """
 Visualizes SceneGraph state using Blender Server.
+
+TODO(gizatt): Make this work with modern Drake again. This probably
+works with Drake from summer 2020.
 """
 from __future__ import print_function
 import argparse
@@ -230,8 +233,9 @@ if __name__ == "__main__":
     blender_cam = builder.AddSystem(BlenderColorCamera(
         station.get_scene_graph(),
         show_figure=False,
-        draw_period=0.03333333,
+        draw_period=0.03333,
         camera_tfs=cam_tfs,
+        env_map_path="/home/gizatt/tools/blender_server/data/env_maps/aerodynamics_workshop_4k.hdr",
         material_overrides=[
             (".*amazon_table.*",
                 {"material_type": "CC0_texture",

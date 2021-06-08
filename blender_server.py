@@ -28,7 +28,11 @@ import blender_scripts.blender_scene_management as bsm
 if __name__ == '__main__':
     bsm.initialize_scene()
 
-    port = "5556"
+    print(sys.argv)
+    if len(sys.argv) > 5:
+        port = sys.argv[-1]
+    else:
+        port = "5556"
     context = zmq.Context()
     socket = context.socket(zmq.REP)
     socket.bind("tcp://*:%s" % port)
@@ -49,6 +53,8 @@ if __name__ == '__main__':
             else:
                 socket.send(b"Success")
 
+        except zmq.ZMQError:
+            pass
         except Exception as e:
             print("Unhandled exception from server: ", e)
             socket.send(b"Failure: " + str(e).encode('ascii'))

@@ -17,21 +17,22 @@ def main():
     os.makedirs(build_dir, exist_ok=True)
 
     # Extract.
-    blender_base = "blender-2.80-linux-glibc217-x86_64"
+    blender_base = "blender-2.92.0-linux64"
     blender_dir = join(build_dir, blender_base)
-    blender_url = f"https://mirror.clarkson.edu/blender/release/Blender2.80/{blender_base}.tar.bz2"
-    blender_archive = join(build_dir, f"{blender_base}.tar.bz2")
+    blender_url = f"https://download.blender.org/release/Blender2.92/{blender_base}.tar.xz"
+    blender_archive = join(build_dir, f"{blender_base}.tar.xz")
     if not isdir(blender_dir):
         print(blender_archive)
         if not isfile(blender_archive):
             check_call(["wget", blender_url, "-O", blender_archive])
-            # sha256sum = "7276216e95b28c74306cec21b6d61e202cbe14035a15a77dbc45fe9d98fca7aa  blender-2.80-linux-glibc217-x86_64.tar.bz"
+            # sha256sum = "7276216e95b28c74306cec21b6d61e202cbe14035a15a77dbc45fe9d98fca7aa  blender-2.81-linux-glibc217-x86_64.tar.bz"
         with tarfile.open(blender_archive, "r") as tar:
             tar.extractall(build_dir)
     assert isdir(blender_dir)
 
-    py_dir = join(blender_dir, "2.80/python")
+    py_dir = join(blender_dir, "2.92/python")
     py_bin = join(py_dir, "bin/python3.7m")
+#    py_bin = join(py_dir, "/bin/python3.8")
     check_call([py_bin, "-m", "ensurepip"])
     check_call([py_bin, "-m", "pip", "install", "attrs", "zmq"])
 

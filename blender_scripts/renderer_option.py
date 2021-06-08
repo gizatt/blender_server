@@ -1,17 +1,19 @@
 import attr
 import bpy
 from blender_scripts.utils import is_old_api
-from blender_scripts.object_manip import get_bpyobj_by_name
 
 
-def remove_from_renderer(obj_name_key: str):
-    obj = get_bpyobj_by_name(obj_name_key)
-    obj.hide_render = True
-
-
-def add_to_renderer(obj_name_key: str):
-    obj = get_bpyobj_by_name(obj_name_key)
-    obj.hide_render = False
+def get_bpyobj_by_name(name_key: str):
+    """
+    Using the name key to retrieve the object
+    :param name_key: The key assigned using import_obj_model
+    :return: bpy.data.objects[name_key]
+    """
+    obj_collect = bpy.context.scene.objects
+    if name_key in obj_collect:
+        return obj_collect[name_key]
+    else:
+        sys.exit(-1)
 
 
 @attr.s
@@ -43,17 +45,17 @@ def setup_renderer_resolution(option: RendererOption, camera_name='Camera'):
     bpy.data.scenes['Scene'].render.resolution_percentage = 100
 
     # Set up the camera intrsinsic
-    camera_obj = bpy.context.scene.objects[camera_name]
-    camera_obj.data.type = 'PERSP'
-    camera_obj.data.lens_unit = 'MILLIMETERS'
-    camera_obj.data.lens = option.focal_bpy()
-    camera_obj.data.sensor_width = option.sensor_width_bpy()
+    # camera_obj = bpy.context.scene.objects[camera_name]
+    # camera_obj.data.type = 'PERSP'
+    #camera_obj.data.lens_unit = 'MILLIMETERS' # Already set up in the camera itself
+    #camera_obj.data.lens = option.focal_bpy() 
+    # camera_obj.data.sensor_width = option.sensor_width_bpy()
 
 
 @attr.s
 class CyclesRendererOption(RendererOption):
     # The number of samples per pixel
-    num_samples = 64
+    num_samples = 32
     use_denoising = True
 
     # Parameter related to performance but not output
@@ -62,9 +64,9 @@ class CyclesRendererOption(RendererOption):
     renderer_device = 'GPU'
 
 
-def setup_and_use_cycles(option: CyclesRendererOption):
+def setup_and_use_cycles(option: CyclesRendererOption, camera_name='Camera'):
     # The general setup code
-    setup_renderer_resolution(option)
+    setup_renderer_resolution(option, camera_name=camera_name)
     bpy.context.scene.render.engine = 'CYCLES'
     if is_old_api():
         bpy.context.scene.render.use_raytrace = True
@@ -90,8 +92,12 @@ class EeveeRendererOption(RendererOption):
 
     # The member related to shadow
     use_soft_shadow = True
-    shadow_method = 'VSM'
     shadow_cube_size = '1024'
+
+    use_ssr = True
+    taa_render_samples = 20
+    ssr_max_roughness = 0.1
+
 
 
 def setup_and_use_eevee(option: EeveeRendererOption, camera_name='Camera'):
@@ -104,9 +110,8 @@ def setup_and_use_eevee(option: EeveeRendererOption, camera_name='Camera'):
     bpy.context.scene.eevee.use_gtao = option.use_ambient_occlusion
 
     # the setup code for shadow
-    bpy.context.scene.eevee.shadow_method = option.shadow_method
     bpy.context.scene.eevee.use_soft_shadows = option.use_soft_shadow
     bpy.context.scene.eevee.shadow_cube_size = option.shadow_cube_size
-    bpy.context.scene.eevee.taa_render_samples = 20
-    bpy.context.scene.eevee.use_ssr = True
-    bpy.context.scene.eevee.ssr_max_roughness = 0.1
+    bpy.context.scene.eevee.taa_render_samples = option.taa_render_samples
+    bpy.context.scene.eevee.use_ssr = option.use_ssr
+    bpy.context.scene.eevee.ssr_max_roughness = option.ssr_max_roughness
