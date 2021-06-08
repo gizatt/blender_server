@@ -377,7 +377,7 @@ class BlenderLabelCamera(LeafSystem):
             [source_name, frame_name] = self._parse_name(link_name)
             model_id = pose_bundle.get_model_instance_id(frame_i)
             # pose_matrix = pose_bundle.get_pose(frame_i)
-            pose_matrix = pose_bundle.get_transorm(frame_i)
+            pose_matrix = pose_bundle.get_transform(frame_i)
             for j in range(self.num_link_geometries_by_link_name[link_name]):
                 offset = RigidTransform(
                     self.global_transform.GetAsMatrix4().dot(
