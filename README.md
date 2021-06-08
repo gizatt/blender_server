@@ -30,6 +30,8 @@ jpeg).
 
 It's pretty tempting to want to [use Blender as a Python module](https://blender.stackexchange.com/questions/117200/how-to-build-blender-as-a-python-module), but as far as I can tell, it looks pretty tricky to get that actually working in a way that's easy and portable to install. However, installing Blender itself is very easy, and getting it to run a Python script is also easy. So this repo settles on running a Blender instance as a server process, and connecting to it over IPC to ask it to render images.
 
+(Also see [this issue](https://github.com/gizatt/blender_server/issues/9), similar discussion.)
+
 # Setup
 
 If on Linux, run:
