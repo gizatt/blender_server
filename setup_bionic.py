@@ -17,9 +17,9 @@ def main():
     os.makedirs(build_dir, exist_ok=True)
 
     # Extract.
-    blender_base = "blender-2.82-linux64"
+    blender_base = "blender-2.92.0-linux64"
     blender_dir = join(build_dir, blender_base)
-    blender_url = f"https://download.blender.org/release/Blender2.82/{blender_base}.tar.xz"
+    blender_url = f"https://download.blender.org/release/Blender2.92/{blender_base}.tar.xz"
     blender_archive = join(build_dir, f"{blender_base}.tar.xz")
     if not isdir(blender_dir):
         print(blender_archive)
@@ -30,10 +30,10 @@ def main():
             tar.extractall(build_dir)
     assert isdir(blender_dir)
 
-    py_dir = join(blender_dir, "2.82/python")
-#    py_bin = join(py_dir, "bin/python3.7m")
-    py_bin = join(py_dir, "/bin/python3.8")
-#    check_call([py_bin, "-m", "ensurepip"])
+    py_dir = join(blender_dir, "2.92/python")
+    py_bin = join(py_dir, "bin/python3.7m")
+#    py_bin = join(py_dir, "/bin/python3.8")
+    check_call([py_bin, "-m", "ensurepip"])
     check_call([py_bin, "-m", "pip", "install", "attrs", "zmq"])
 
     blender_bin = join(blender_dir, "blender")
