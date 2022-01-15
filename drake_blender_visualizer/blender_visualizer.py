@@ -423,7 +423,9 @@ class BlenderColorCamera(LeafSystem):
                  env_map_path=None,
                  out_prefix=None,
                  show_figure=False,
-                 save_scene=False):
+                 save_scene=False,
+                 resolution=[640, 480],
+                 cam_fov=(np.pi/2.)):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -479,6 +481,7 @@ class BlenderColorCamera(LeafSystem):
         self._scene_graph = scene_graph
         
         self._role = Role.kIllustration
+        self._resolution = resolution
         self.env_map_path = env_map_path
 
         # Compile regex for the material overrides
@@ -486,6 +489,7 @@ class BlenderColorCamera(LeafSystem):
             (re.compile(x[0]), x[1]) for x in material_overrides]
         self.global_transform = global_transform
         self.camera_tfs = camera_tfs
+        self._cam_angle = cam_fov
 
         def on_initialize(context, event):
             self.load()
@@ -667,12 +671,12 @@ class BlenderColorCamera(LeafSystem):
                 name="cam_%d" % i,
                 location=camera_tf_post.translation().tolist(),
                 quaternion=camera_tf_post.rotation().ToQuaternion().wxyz().tolist(),
-                angle=np.pi/2.)
+                angle=self._cam_angle)
 
             self.bsi.send_remote_call(
                 "configure_rendering",
                 camera_name='cam_%d' % i,
-                resolution=[640, 480],
+                resolution=self._resolution,
                 file_format="JPEG",
                 taa_render_samples=20,
                 cycles=True)
