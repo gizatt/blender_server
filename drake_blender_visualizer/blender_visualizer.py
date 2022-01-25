@@ -425,7 +425,8 @@ class BlenderColorCamera(LeafSystem):
                  show_figure=False,
                  save_scene=False,
                  resolution=[640, 480],
-                 cam_fov=(np.pi/2.)):
+                 cam_fov=(np.pi/2.),
+                 raytraced=True):
         """
         Args:
             scene_graph: A SceneGraph object.
@@ -445,7 +446,6 @@ class BlenderColorCamera(LeafSystem):
                 a register material call, not including names. (Those are
                 assigned automatically by this class.)
             global transform: RigidTransform that gets premultiplied to every object.
-
         Note: This call will not return until it connects to the
               Blender server.
         """
@@ -460,6 +460,7 @@ class BlenderColorCamera(LeafSystem):
         self.DeclarePeriodicPublish(draw_period, 0.)
         self.draw_period = draw_period
         self.save_scene = save_scene
+        self.raytraced = raytraced
 
         # SceneGraph geometric info input.
         self._geometry_query_input_port = self.DeclareAbstractInputPort(
@@ -679,7 +680,7 @@ class BlenderColorCamera(LeafSystem):
                 resolution=self._resolution,
                 file_format="JPEG",
                 taa_render_samples=20,
-                cycles=True)
+                cycles=self.raytraced)
 
         if self.env_map_path:
             self.bsi.send_remote_call(

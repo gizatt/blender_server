@@ -224,10 +224,12 @@ def apply_modifier_to_object(name, type, **kwargs):
 def register_light(name,
                    type="POINT",
                    location=None,
+                   quaternion=None,
                    energy=None):
     '''
         Registers a light of the specified type under the given unique name.
         Location should be a 3-element list of floats, if provided.
+        Quaternion should be a 4-element list of floats, if provided
         Eenrgy should be a float, if provided.
     '''
     bpy.ops.object.light_add(type=type)
@@ -236,6 +238,9 @@ def register_light(name,
     obj.data.use_contact_shadow = True
     if location is not None:
         obj.location = location
+    if quaternion is not None:
+        obj.rotation_mode = 'QUATERNION'
+        obj.rotation_quaternion = quaternion
     if energy is not None:
         obj.data.energy = energy
 
